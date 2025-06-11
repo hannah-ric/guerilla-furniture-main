@@ -17,6 +17,7 @@
         "setup:codex": "bash scripts/codex-env.sh",
         "verify": "npm run typecheck && npm run lint && npm run build",
         "verify:full": "bash scripts/verify-setup.sh",
+        "test:env": "bash scripts/quick-test.sh",
         "supabase:start": "supabase start",
         "supabase:stop": "supabase stop",
         "supabase:db-push": "supabase db push",

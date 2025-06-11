@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "🔍 Verifying Blueprint Buddy setup for Codex..."
+echo "Verifying Blueprint Buddy setup for Codex..."
 
 # Exit on any error
 set -e
@@ -22,10 +22,10 @@ check_command() {
     TOTAL_TESTS=$((TOTAL_TESTS + 1))
     
     if command -v "$cmd" &> /dev/null; then
-        echo -e "${GREEN}✅ $description${NC}"
+        echo -e "${GREEN}[PASS] $description${NC}"
         PASSED_TESTS=$((PASSED_TESTS + 1))
     else
-        echo -e "${RED}❌ $description${NC}"
+        echo -e "${RED}[FAIL] $description${NC}"
     fi
 }
 
@@ -36,10 +36,10 @@ check_env_var() {
     TOTAL_TESTS=$((TOTAL_TESTS + 1))
     
     if [ -n "${!var}" ]; then
-        echo -e "${GREEN}✅ $description${NC}"
+        echo -e "${GREEN}[PASS] $description${NC}"
         PASSED_TESTS=$((PASSED_TESTS + 1))
     else
-        echo -e "${YELLOW}⚠️  $description (optional)${NC}"
+        echo -e "${YELLOW}[WARN] $description (optional)${NC}"
     fi
 }
 
@@ -52,16 +52,16 @@ run_test() {
     echo -n "Testing $description... "
     
     if eval "$cmd" &> /dev/null; then
-        echo -e "${GREEN}✅${NC}"
+        echo -e "${GREEN}[PASS]${NC}"
         PASSED_TESTS=$((PASSED_TESTS + 1))
     else
-        echo -e "${RED}❌${NC}"
+        echo -e "${RED}[FAIL]${NC}"
     fi
 }
 
 echo ""
-echo "🔧 Checking System Requirements"
-echo "==============================="
+echo "Checking System Requirements"
+echo "============================="
 
 check_command "node" "Node.js installed"
 check_command "npm" "npm installed" 
@@ -73,15 +73,15 @@ if command -v node &> /dev/null; then
     MAJOR_VERSION=$(echo $NODE_VERSION | cut -d'.' -f1)
     
     if [ "$MAJOR_VERSION" -ge 18 ]; then
-        echo -e "${GREEN}✅ Node.js version $NODE_VERSION (>=18 required)${NC}"
+        echo -e "${GREEN}[PASS] Node.js version $NODE_VERSION (>=18 required)${NC}"
     else
-        echo -e "${RED}❌ Node.js version $NODE_VERSION (<18 required)${NC}"
+        echo -e "${RED}[FAIL] Node.js version $NODE_VERSION (<18 required)${NC}"
     fi
 fi
 
 echo ""
-echo "🌐 Checking Network Configuration"
-echo "================================="
+echo "Checking Network Configuration"
+echo "==============================="
 
 check_env_var "HTTP_PROXY" "HTTP_PROXY set"
 check_env_var "HTTPS_PROXY" "HTTPS_PROXY set"
@@ -93,39 +93,39 @@ if [ -n "$HTTP_PROXY" ]; then
 fi
 
 echo ""
-echo "🔑 Checking Environment Variables"
-echo "================================="
+echo "Checking Environment Variables"
+echo "=============================="
 
 check_env_var "VITE_OPENAI_API_KEY" "OpenAI API key set"
 check_env_var "NODE_ENV" "NODE_ENV set"
 
 echo ""
-echo "📦 Checking Dependencies"
-echo "========================"
+echo "Checking Dependencies"
+echo "===================="
 
 if [ -f "package.json" ]; then
-    echo -e "${GREEN}✅ package.json found${NC}"
+    echo -e "${GREEN}[PASS] package.json found${NC}"
     
     if [ -d "node_modules" ]; then
-        echo -e "${GREEN}✅ node_modules directory exists${NC}"
+        echo -e "${GREEN}[PASS] node_modules directory exists${NC}"
     else
-        echo -e "${RED}❌ node_modules not found - run 'npm install'${NC}"
+        echo -e "${RED}[FAIL] node_modules not found - run 'npm install'${NC}"
     fi
 else
-    echo -e "${RED}❌ package.json not found${NC}"
+    echo -e "${RED}[FAIL] package.json not found${NC}"
 fi
 
 echo ""
-echo "🏗️ Testing Build Process"
-echo "========================"
+echo "Testing Build Process"
+echo "===================="
 
 run_test "npm run typecheck" "TypeScript compilation"
 run_test "npm run lint" "ESLint checks"
 run_test "npm run build" "Vite build process"
 
 echo ""
-echo "📁 Checking Project Structure"
-echo "============================="
+echo "Checking Project Structure"
+echo "=========================="
 
 # Check for key directories and files
 key_files=(
@@ -142,16 +142,16 @@ key_files=(
 for file in "${key_files[@]}"; do
     TOTAL_TESTS=$((TOTAL_TESTS + 1))
     if [ -e "$file" ]; then
-        echo -e "${GREEN}✅ $file exists${NC}"
+        echo -e "${GREEN}[PASS] $file exists${NC}"
         PASSED_TESTS=$((PASSED_TESTS + 1))
     else
-        echo -e "${RED}❌ $file missing${NC}"
+        echo -e "${RED}[FAIL] $file missing${NC}"
     fi
 done
 
 echo ""
-echo "🧪 Testing Application Components"
-echo "================================="
+echo "Testing Application Components"
+echo "=============================="
 
 # Test if key TypeScript files compile (run full project check for path resolution)
 run_test "npx tsc --noEmit --project ." "TypeScript project compiles"
@@ -160,18 +160,18 @@ run_test "node -e \"console.log('Base Agent structure OK')\"" "Base Agent struct
 run_test "node -e \"console.log('OpenAI service structure OK')\"" "OpenAI service structure"
 
 echo ""
-echo "📊 Verification Summary"
-echo "======================="
+echo "Verification Summary"
+echo "==================="
 
 echo "Tests passed: $PASSED_TESTS/$TOTAL_TESTS"
 
 if [ "$PASSED_TESTS" -eq "$TOTAL_TESTS" ]; then
-    echo -e "${GREEN}🎉 All tests passed! Your environment is ready for development.${NC}"
+    echo -e "${GREEN}All tests passed! Your environment is ready for development.${NC}"
     exit 0
 elif [ "$PASSED_TESTS" -gt $((TOTAL_TESTS * 3 / 4)) ]; then
-    echo -e "${YELLOW}⚠️  Most tests passed. Check warnings above and consider fixing them.${NC}"
+    echo -e "${YELLOW}Most tests passed. Check warnings above and consider fixing them.${NC}"
     exit 0
 else
-    echo -e "${RED}❌ Several tests failed. Please address the issues above before proceeding.${NC}"
+    echo -e "${RED}Several tests failed. Please address the issues above before proceeding.${NC}"
     exit 1
 fi 

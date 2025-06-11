@@ -63,7 +63,9 @@ export NODE_EXTRA_CA_CERTS="$CODEX_PROXY_CERT"
 ### Initial Setup
 1. Ensure OpenAI API key is set as a Codex secret
 2. Run the setup script: `bash scripts/setup.sh`
-3. Verify environment: `source scripts/codex-env.sh`
+3. Quick environment test: `npm run test:env`
+4. Full verification: `npm run verify:full`
+5. Verify environment: `source scripts/codex-env.sh`
 
 ### Development Commands
 ```bash
@@ -81,6 +83,12 @@ npm run build
 
 # Run tests (when available)
 npm run test
+
+# Quick environment test
+npm run test:env
+
+# Full verification
+npm run verify:full
 ```
 
 ### Working with Agents
