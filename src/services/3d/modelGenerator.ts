@@ -11,6 +11,7 @@ import { FurnitureDesign } from '@/lib/types';
 import { Logger } from '@/lib/logger';
 import { FurnitureGeometryGenerator, FurniturePart } from './furnitureGeometry';
 import { DIMENSIONS } from '@/lib/constants';
+import { ErrorHandler, ErrorCode, withErrorHandling } from '@/lib/errors';
 
 export interface Model3DResult {
   assembledModel: THREE.Group;
@@ -47,8 +48,32 @@ export class ModelGenerator {
     });
     
     try {
+      // Validate design before generation
+      this.validateDesign(design);
+      
       // Generate the furniture geometry
-      const modelData = this.geometryGenerator.generateFurnitureModel(design);
+      const modelData = await withErrorHandling(
+        () => this.geometryGenerator.generateFurnitureModel(design),
+        'Generating furniture geometry',
+        null
+      );
+      
+      if (!modelData) {
+        throw ErrorHandler.createError(
+          ErrorCode.MODEL_GENERATION_FAILED,
+          'Failed to generate furniture geometry',
+          'Unable to create 3D model. Please try simplifying your design.',
+          {
+            technicalDetails: { design },
+            recoveryStrategies: [
+              {
+                action: 'fallback',
+                description: 'Use a simplified model representation'
+              }
+            ]
+          }
+        );
+      }
       
       // Add lighting helpers to the assembled model
       this.addModelHelpers(modelData.assembly);
@@ -79,10 +104,58 @@ export class ModelGenerator {
       return modelData.assembly;
       
     } catch (error) {
-      this.logger.error('Model generation failed', error);
+      const handledError = ErrorHandler.handle(error, 'generateModel');
       
-      // Return fallback simple model
-      return this.createFallbackModel(design);
+      // If recoverable, return fallback model
+      if (handledError.isRecoverable) {
+        this.logger.warn('Using fallback model due to generation error');
+        return this.createFallbackModel(design);
+      }
+      
+      throw handledError;
+    }
+  }
+
+  /**
+   * Validate design before model generation
+   */
+  private validateDesign(design: FurnitureDesign): void {
+    // Check required fields
+    if (!design.furniture_type || !design.dimensions) {
+      throw ErrorHandler.createError(
+        ErrorCode.MODEL_INVALID_GEOMETRY,
+        'Invalid design data',
+        'The design is missing required information. Please complete your design before generating a 3D model.',
+        {
+          technicalDetails: { design }
+        }
+      );
+    }
+
+    // Check dimension ranges
+    const { width, height, depth } = design.dimensions;
+    const { MAX, MIN } = DIMENSIONS;
+
+    if (width > MAX.WIDTH || height > MAX.HEIGHT || depth > MAX.DEPTH) {
+      throw ErrorHandler.createError(
+        ErrorCode.VALIDATION_DIMENSIONS,
+        'Dimensions exceed maximum limits',
+        `Your design is too large. Maximum dimensions are ${MAX.WIDTH}"W × ${MAX.HEIGHT}"H × ${MAX.DEPTH}"D.`,
+        {
+          technicalDetails: { dimensions: design.dimensions, limits: MAX }
+        }
+      );
+    }
+
+    if (width < MIN.WIDTH || height < MIN.HEIGHT || depth < MIN.DEPTH) {
+      throw ErrorHandler.createError(
+        ErrorCode.VALIDATION_DIMENSIONS,
+        'Dimensions below minimum limits',
+        `Your design is too small. Minimum dimensions are ${MIN.WIDTH}"W × ${MIN.HEIGHT}"H × ${MIN.DEPTH}"D.`,
+        {
+          technicalDetails: { dimensions: design.dimensions, limits: MIN }
+        }
+      );
     }
   }
 
@@ -97,8 +170,26 @@ export class ModelGenerator {
           resolve(gltf as ArrayBuffer);
         },
         (error: any) => {
-          this.logger.error('GLTF export failed', error);
-          reject(error);
+          const handledError = ErrorHandler.createError(
+            ErrorCode.MODEL_RENDERING_ERROR,
+            'GLTF export failed',
+            'Unable to export your 3D model. Please try again.',
+            {
+              cause: error,
+              recoveryStrategies: [
+                {
+                  action: 'retry',
+                  description: 'Try exporting again'
+                },
+                {
+                  action: 'fallback',
+                  description: 'Use a different export format'
+                }
+              ]
+            }
+          );
+          this.logger.error('GLTF export failed', handledError);
+          reject(handledError);
         },
         { binary: true }
       );

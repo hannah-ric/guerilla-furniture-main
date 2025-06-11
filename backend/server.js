@@ -38,9 +38,97 @@ const ChatRequestSchema = z.object({
   systemPrompt: z.string().optional()
 });
 
-// Cost tracking
-let sessionCosts = new Map();
-const MAX_SESSION_COST = 1.0;
+// Enhanced session management
+class SessionManager {
+  constructor() {
+    this.sessions = new Map();
+    this.MAX_SESSION_COST = 1.0;
+    this.SESSION_TIMEOUT = 60 * 60 * 1000; // 1 hour in milliseconds
+    this.CLEANUP_INTERVAL = 10 * 60 * 1000; // Run cleanup every 10 minutes
+    
+    // Start periodic cleanup
+    this.startCleanupInterval();
+  }
+
+  getSession(sessionId) {
+    if (!this.sessions.has(sessionId)) {
+      this.sessions.set(sessionId, {
+        cost: 0,
+        requests: [],
+        createdAt: Date.now(),
+        lastActivity: Date.now()
+      });
+    }
+    
+    const session = this.sessions.get(sessionId);
+    session.lastActivity = Date.now();
+    return session;
+  }
+
+  addCost(sessionId, cost) {
+    const session = this.getSession(sessionId);
+    session.cost += cost;
+    session.requests.push({
+      cost,
+      timestamp: Date.now()
+    });
+    return session.cost;
+  }
+
+  isSessionValid(sessionId) {
+    const session = this.getSession(sessionId);
+    return session.cost < this.MAX_SESSION_COST;
+  }
+
+  resetSession(sessionId) {
+    this.sessions.delete(sessionId);
+  }
+
+  startCleanupInterval() {
+    setInterval(() => {
+      this.cleanupExpiredSessions();
+    }, this.CLEANUP_INTERVAL);
+  }
+
+  cleanupExpiredSessions() {
+    const now = Date.now();
+    let cleanedCount = 0;
+    
+    for (const [sessionId, session] of this.sessions.entries()) {
+      if (now - session.lastActivity > this.SESSION_TIMEOUT) {
+        this.sessions.delete(sessionId);
+        cleanedCount++;
+      }
+    }
+    
+    if (cleanedCount > 0) {
+      console.log(`Cleaned up ${cleanedCount} expired sessions`);
+    }
+  }
+
+  getStats() {
+    const stats = {
+      activeSessions: this.sessions.size,
+      totalRequests: 0,
+      totalCost: 0,
+      averageCostPerSession: 0
+    };
+
+    for (const session of this.sessions.values()) {
+      stats.totalRequests += session.requests.length;
+      stats.totalCost += session.cost;
+    }
+
+    if (stats.activeSessions > 0) {
+      stats.averageCostPerSession = stats.totalCost / stats.activeSessions;
+    }
+
+    return stats;
+  }
+}
+
+// Initialize session manager
+const sessionManager = new SessionManager();
 
 // API Routes
 app.post('/api/chat', async (req, res) => {
@@ -48,11 +136,11 @@ app.post('/api/chat', async (req, res) => {
     const { message, context, systemPrompt } = ChatRequestSchema.parse(req.body);
     const sessionId = req.headers['x-session-id'] || 'default';
     
-    // Check session cost
-    const currentCost = sessionCosts.get(sessionId) || 0;
-    if (currentCost >= MAX_SESSION_COST) {
+    // Check session validity
+    if (!sessionManager.isSessionValid(sessionId)) {
       return res.status(429).json({ 
-        error: 'Session cost limit exceeded. Please start a new session.' 
+        error: 'Session cost limit exceeded. Please start a new session.',
+        sessionCost: sessionManager.getSession(sessionId).cost
       });
     }
 
@@ -86,7 +174,7 @@ app.post('/api/chat', async (req, res) => {
     const cost = calculateCost(usage.prompt_tokens, usage.completion_tokens);
     
     // Update session cost
-    sessionCosts.set(sessionId, currentCost + cost);
+    const totalCost = sessionManager.addCost(sessionId, cost);
 
     res.json({
       response: response.choices[0].message.content,
@@ -95,7 +183,7 @@ app.post('/api/chat', async (req, res) => {
         completionTokens: usage.completion_tokens,
         totalTokens: usage.total_tokens,
         cost,
-        sessionCost: currentCost + cost
+        sessionCost: totalCost
       }
     });
 
@@ -104,6 +192,14 @@ app.post('/api/chat', async (req, res) => {
     
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid request data' });
+    }
+    
+    // Enhanced error handling
+    if (error.code === 'insufficient_quota') {
+      return res.status(503).json({ 
+        error: 'OpenAI quota exceeded',
+        message: 'The AI service is temporarily unavailable. Please try again later.'
+      });
     }
     
     res.status(500).json({ 
@@ -118,6 +214,15 @@ app.post('/api/agent/:agentName', async (req, res) => {
   try {
     const { agentName } = req.params;
     const { prompt, schema } = req.body;
+    const sessionId = req.headers['x-session-id'] || 'default';
+    
+    // Check session validity
+    if (!sessionManager.isSessionValid(sessionId)) {
+      return res.status(429).json({ 
+        error: 'Session cost limit exceeded',
+        sessionCost: sessionManager.getSession(sessionId).cost
+      });
+    }
     
     const response = await openai.chat.completions.create({
       model: 'gpt-3.5-turbo',
@@ -138,10 +243,19 @@ app.post('/api/agent/:agentName', async (req, res) => {
 
     const content = response.choices[0].message.content;
     const data = JSON.parse(content);
+    
+    // Calculate and track cost
+    const usage = response.usage;
+    const cost = calculateCost(usage.prompt_tokens, usage.completion_tokens);
+    sessionManager.addCost(sessionId, cost);
 
     res.json({
       data,
-      usage: response.usage
+      usage: {
+        ...usage,
+        cost,
+        sessionCost: sessionManager.getSession(sessionId).cost
+      }
     });
 
   } catch (error) {
@@ -153,13 +267,39 @@ app.post('/api/agent/:agentName', async (req, res) => {
 // Reset session cost
 app.post('/api/session/reset', (req, res) => {
   const sessionId = req.headers['x-session-id'] || 'default';
-  sessionCosts.delete(sessionId);
+  sessionManager.resetSession(sessionId);
   res.json({ success: true });
 });
 
-// Health check
+// Get session stats
+app.get('/api/session/stats', (req, res) => {
+  const sessionId = req.headers['x-session-id'] || 'default';
+  const session = sessionManager.getSession(sessionId);
+  
+  res.json({
+    sessionId,
+    cost: session.cost,
+    requestCount: session.requests.length,
+    createdAt: new Date(session.createdAt),
+    lastActivity: new Date(session.lastActivity),
+    timeRemaining: Math.max(0, sessionManager.SESSION_TIMEOUT - (Date.now() - session.lastActivity))
+  });
+});
+
+// Get global stats (admin endpoint - should be protected in production)
+app.get('/api/stats', (req, res) => {
+  res.json(sessionManager.getStats());
+});
+
+// Health check with enhanced info
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date() });
+  const stats = sessionManager.getStats();
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date(),
+    sessions: stats.activeSessions,
+    uptime: process.uptime()
+  });
 });
 
 function calculateCost(promptTokens, completionTokens) {
@@ -172,16 +312,17 @@ function calculateCost(promptTokens, completionTokens) {
          (completionTokens / 1000) * modelCost.output;
 }
 
-// Clean up old sessions periodically
-setInterval(() => {
-  const now = Date.now();
-  // Clear sessions older than 1 hour
-  // In production, you'd track timestamps properly
-  if (sessionCosts.size > 100) {
-    sessionCosts.clear();
-  }
-}, 3600000);
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully');
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
+});
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Backend server running on port ${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`CORS enabled for: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
 }); 

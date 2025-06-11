@@ -565,18 +565,77 @@ export class FurnitureGeometryGenerator {
    * Apply joinery features using CSG operations
    */
   private applyJoineryFeatures(joineryMethods: JoineryMethod[]): void {
-    // This would implement actual CSG operations to create
-    // mortises, tenons, dados, etc. based on the joinery methods
-    
     this.parts.forEach((part) => {
       if (part.joineryFeatures && part.joineryFeatures.length > 0) {
+        let modifiedGeometry = part.geometry;
+        
         part.joineryFeatures.forEach((feature) => {
           // Apply CSG subtraction for mortises, dados, rabbets
           if (['mortise', 'dado', 'rabbet', 'pocket', 'dowel'].includes(feature.type)) {
-            // In a full implementation, this would subtract the feature geometry
-            // from the part geometry using CSG operations
+            const position = feature.position.clone();
+            const rotation = feature.rotation.clone();
+            
+            switch (feature.type) {
+              case 'mortise':
+                modifiedGeometry = CSG.createMortise(
+                  modifiedGeometry,
+                  feature.dimensions.x,
+                  feature.dimensions.y,
+                  feature.depth,
+                  position,
+                  rotation
+                );
+                break;
+                
+              case 'dado':
+                modifiedGeometry = CSG.createDado(
+                  modifiedGeometry,
+                  feature.dimensions.x,
+                  feature.depth,
+                  feature.dimensions.z,
+                  position,
+                  rotation
+                );
+                break;
+                
+              case 'rabbet':
+                modifiedGeometry = CSG.createRabbet(
+                  modifiedGeometry,
+                  feature.dimensions.x,
+                  feature.depth,
+                  feature.dimensions.z,
+                  position,
+                  rotation
+                );
+                break;
+                
+              case 'pocket':
+                // Pocket holes at an angle
+                modifiedGeometry = CSG.createPocketHole(
+                  modifiedGeometry,
+                  0.375, // 3/8" pocket hole
+                  feature.depth,
+                  position,
+                  15 // 15 degree angle
+                );
+                break;
+                
+              case 'dowel':
+                modifiedGeometry = CSG.createDowelHole(
+                  modifiedGeometry,
+                  feature.dimensions.x, // diameter
+                  feature.depth,
+                  position,
+                  new THREE.Vector3(0, 1, 0) // vertical by default
+                );
+                break;
+            }
           }
         });
+        
+        // Update part geometry
+        part.geometry.dispose();
+        part.geometry = modifiedGeometry;
       }
     });
   }
@@ -862,16 +921,81 @@ export class FurnitureGeometryGenerator {
    * Apply grain-aware UV mapping
    */
   private applyGrainUVMapping(geometry: THREE.BoxGeometry, grainDirection: 'horizontal' | 'vertical'): void {
-    // This would implement proper UV mapping to ensure
-    // wood grain runs in the correct direction
+    const uvAttribute = geometry.attributes.uv;
+    const uvArray = uvAttribute.array as Float32Array;
+    
+    // Box geometry has 6 faces, 4 vertices per face, 2 UV coordinates per vertex
+    // Face order: +X, -X, +Y, -Y, +Z, -Z
+    
+    if (grainDirection === 'horizontal') {
+      // Grain runs along X axis
+      for (let face = 0; face < 6; face++) {
+        const baseIndex = face * 8; // 4 vertices * 2 coordinates
+        
+        if (face === 2 || face === 3) { // Top and bottom faces
+          // Rotate UVs 90 degrees for top/bottom to align grain
+          for (let i = 0; i < 4; i++) {
+            const u = uvArray[baseIndex + i * 2];
+            const v = uvArray[baseIndex + i * 2 + 1];
+            uvArray[baseIndex + i * 2] = 1 - v;
+            uvArray[baseIndex + i * 2 + 1] = u;
+          }
+        }
+      }
+    } else if (grainDirection === 'vertical') {
+      // Grain runs along Y axis - default UV mapping works
+      // No changes needed
+    }
+    
+    uvAttribute.needsUpdate = true;
   }
 
   /**
    * Round edges of geometry for realism
    */
   private roundEdges(geometry: THREE.BufferGeometry, radius: number): THREE.BufferGeometry {
-    // In a full implementation, this would use a modifier
-    // or subdivision surface to round the edges
+    // Use CSG roundEdges if available, otherwise create beveled geometry
+    if (CSG.roundEdges) {
+      return CSG.roundEdges(geometry, radius, 4);
+    }
+    
+    // Fallback: Create a slightly beveled box
+    if (geometry instanceof THREE.BoxGeometry) {
+      const params = geometry.parameters;
+      const width = params.width;
+      const height = params.height;
+      const depth = params.depth;
+      
+      // Create beveled box geometry
+      const shape = new THREE.Shape();
+      const r = Math.min(radius, width * 0.1, height * 0.1); // Limit radius
+      
+      // Create rounded rectangle
+      shape.moveTo(-width/2 + r, -height/2);
+      shape.lineTo(width/2 - r, -height/2);
+      shape.quadraticCurveTo(width/2, -height/2, width/2, -height/2 + r);
+      shape.lineTo(width/2, height/2 - r);
+      shape.quadraticCurveTo(width/2, height/2, width/2 - r, height/2);
+      shape.lineTo(-width/2 + r, height/2);
+      shape.quadraticCurveTo(-width/2, height/2, -width/2, height/2 - r);
+      shape.lineTo(-width/2, -height/2 + r);
+      shape.quadraticCurveTo(-width/2, -height/2, -width/2 + r, -height/2);
+      
+      const extrudeSettings = {
+        depth: depth,
+        bevelEnabled: true,
+        bevelThickness: radius * 0.5,
+        bevelSize: radius * 0.5,
+        bevelSegments: 2
+      };
+      
+      const roundedGeometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+      roundedGeometry.center();
+      
+      return roundedGeometry;
+    }
+    
+    // Default: return original
     return geometry;
   }
 
@@ -879,26 +1003,109 @@ export class FurnitureGeometryGenerator {
    * Merge multiple geometries
    */
   private mergeGeometries(geometries: THREE.BufferGeometry[]): THREE.BufferGeometry {
-    // This would properly merge geometries
-    // For now, return the first geometry
-    return geometries[0];
+    if (geometries.length === 0) {
+      return new THREE.BufferGeometry();
+    }
+    
+    if (geometries.length === 1) {
+      return geometries[0];
+    }
+    
+    // Use CSG union to merge geometries
+    let merged = geometries[0];
+    
+    for (let i = 1; i < geometries.length; i++) {
+      merged = CSG.union(
+        merged,
+        geometries[i],
+        new THREE.Vector3(0, 0, 0),
+        new THREE.Euler(0, 0, 0)
+      );
+    }
+    
+    return merged;
   }
 
   /**
    * Create edge banding geometry
    */
   private createEdgeBanding(shelfGeometry: THREE.BoxGeometry): THREE.BufferGeometry | null {
-    // This would create thin edge banding geometry
-    // that wraps around the front edge of shelves
-    return null;
+    const params = shelfGeometry.parameters;
+    const width = params.width;
+    const height = params.height;
+    const depth = params.depth;
+    const bandingThickness = 0.04; // 1mm edge banding
+    
+    // Create edge banding strips
+    const frontBanding = new THREE.BoxGeometry(width, height, bandingThickness);
+    frontBanding.translate(0, 0, depth/2 + bandingThickness/2);
+    
+    // Apply wood grain texture differently for edge banding
+    const bandingMaterial = this.getMaterial('oak'); // Contrasting material
+    
+    return frontBanding;
   }
 
   /**
    * Add table stretchers for stability
    */
   private addTableStretchers(dims: any, material: THREE.Material): void {
-    // This would add H-stretcher or X-stretcher
-    // configuration for large tables
+    const scale = 1 / DIMENSIONS.INCH_TO_FEET;
+    const stretcherHeight = 3 * scale;
+    const stretcherThickness = 1.5 * scale;
+    const stretcherInset = 6 * scale;
+    
+    // H-stretcher configuration
+    // Cross piece
+    const crossStretcher = this.createBoardWithGrain(
+      'stretcher_cross',
+      'Cross Stretcher',
+      (dims.width - 2 * stretcherInset) * scale,
+      stretcherHeight,
+      stretcherThickness,
+      material,
+      'horizontal'
+    );
+    
+    crossStretcher.position.set(
+      0,
+      10 * scale, // 10 inches from floor
+      0
+    );
+    
+    this.parts.set('stretcher_cross', crossStretcher);
+    
+    // Side pieces
+    for (let i = 0; i < 2; i++) {
+      const sideStretcher = this.createBoardWithGrain(
+        `stretcher_side_${i + 1}`,
+        `Side Stretcher ${i + 1}`,
+        (dims.depth - 2 * stretcherInset) * scale / 2,
+        stretcherHeight,
+        stretcherThickness,
+        material,
+        'horizontal'
+      );
+      
+      const x = i === 0 ? -(dims.width / 4) : (dims.width / 4);
+      sideStretcher.position.set(
+        x * scale,
+        10 * scale,
+        0
+      );
+      sideStretcher.rotation.y = Math.PI / 2;
+      
+      // Add half-lap joints where stretchers meet
+      sideStretcher.joineryFeatures = [{
+        type: 'dado',
+        position: new THREE.Vector3(0, 0, 0),
+        dimensions: new THREE.Vector3(stretcherThickness, stretcherHeight / 2, stretcherThickness),
+        rotation: new THREE.Euler(0, 0, 0),
+        depth: stretcherHeight / 2
+      }];
+      
+      this.parts.set(`stretcher_side_${i + 1}`, sideStretcher);
+    }
   }
 
   /**

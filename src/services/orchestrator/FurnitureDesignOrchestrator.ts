@@ -11,6 +11,7 @@ import {
 } from '@/services/agents';
 import { IntentType, AgentResponse, SharedState, FurnitureDesign } from '@/lib/types';
 import { PerformanceMonitor } from '@/lib/performance';
+import { ErrorHandler, ErrorCode, BlueprintError, withErrorHandling } from '@/lib/errors';
 
 interface OrchestratorResponse {
   success: boolean;
@@ -78,14 +79,26 @@ export class FurnitureDesignOrchestrator {
         
         // Step 1: Classify intent
         const intentClassifier = this.agents.get('intent');
-        const intentResult = await intentClassifier.process(input, state);
+        const intentResult = await withErrorHandling(
+          () => intentClassifier.process(input, state),
+          'Intent classification',
+          { success: false, data: { primary_intent: IntentType.CLARIFICATION_NEEDED } }
+        );
         
         if (!intentResult.success) {
-          return {
-            success: false,
-            response: this.getFriendlyErrorMessage('intent_failed'),
-            suggestions: this.getContextualSuggestions(state)
-          };
+          throw ErrorHandler.createError(
+            ErrorCode.DESIGN_INTENT_UNCLEAR,
+            'Failed to understand user intent',
+            "I'm having trouble understanding what you'd like to build. Could you provide more details?",
+            {
+              recoveryStrategies: [
+                {
+                  action: 'guide',
+                  description: 'Provide clearer description of your furniture project'
+                }
+              ]
+            }
+          );
         }
 
         const intent = intentResult.data.primary_intent;
@@ -137,10 +150,14 @@ export class FurnitureDesignOrchestrator {
 
       } catch (error) {
         this.logger.error('Orchestration failed', error);
+        
+        // Use centralized error handling
+        const handledError = ErrorHandler.handle(error, 'processUserInput');
+        
         return {
           success: false,
-          response: this.getFriendlyErrorMessage('orchestration_failed', error),
-          suggestions: this.getRecoverySuggestions()
+          response: handledError.userMessage,
+          suggestions: this.getRecoverySuggestions(handledError)
         };
       }
     });
@@ -153,57 +170,93 @@ export class FurnitureDesignOrchestrator {
   ): Promise<Map<string, AgentResponse>> {
     const responses = new Map<string, AgentResponse>();
 
-    switch (intent) {
-      case IntentType.DESIGN_INITIATION: {
-        // When starting a new design, we mainly extract any initial specs
-        const agents = ['dimension', 'material'];
-        for (const agentName of agents) {
-          const agent = this.agents.get(agentName);
-          if (await agent.canHandle(input, state)) {
-            const response = await agent.process(input, state);
-            responses.set(agentName, response);
+    try {
+      switch (intent) {
+        case IntentType.DESIGN_INITIATION: {
+          // When starting a new design, we mainly extract any initial specs
+          const agents = ['dimension', 'material'];
+          for (const agentName of agents) {
+            const agent = this.agents.get(agentName);
+            if (await agent.canHandle(input, state)) {
+              const response = await withErrorHandling(
+                () => agent.process(input, state),
+                `Agent processing: ${agentName}`,
+                { success: false, validation_issues: [`Unable to process ${agentName} information`] }
+              );
+              responses.set(agentName, response);
+            }
+          }
+          break;
+        }
+
+        case IntentType.DIMENSION_SPECIFICATION: {
+          const dimensionAgent = this.agents.get('dimension');
+          const dimResponse = await withErrorHandling(
+            () => dimensionAgent.process(input, state),
+            'Dimension specification',
+            { success: false, validation_issues: ['Invalid dimensions provided'] }
+          );
+          responses.set('dimension', dimResponse);
+          break;
+        }
+
+        case IntentType.MATERIAL_SELECTION: {
+          const materialAgent = this.agents.get('material');
+          const matResponse = await withErrorHandling(
+            () => materialAgent.process(input, state),
+            'Material selection',
+            { success: false, validation_issues: ['Unable to process material selection'] }
+          );
+          responses.set('material', matResponse);
+          break;
+        }
+
+        case IntentType.JOINERY_METHOD: {
+          const joineryAgent = this.agents.get('joinery');
+          const joinResponse = await withErrorHandling(
+            () => joineryAgent.process(input, state),
+            'Joinery method selection',
+            { success: false, validation_issues: ['Unable to determine joinery methods'] }
+          );
+          responses.set('joinery', joinResponse);
+          break;
+        }
+
+        case IntentType.VALIDATION_CHECK: {
+          const validationAgent = this.agents.get('validation');
+          const valResponse = await withErrorHandling(
+            () => validationAgent.process(input, state),
+            'Design validation',
+            { success: false, validation_issues: ['Validation check failed'] }
+          );
+          responses.set('validation', valResponse);
+          break;
+        }
+
+        default: {
+          // For other intents, check which agents can handle
+          for (const [name, agent] of this.agents.entries()) {
+            if (name !== 'intent' && await agent.canHandle(input, state)) {
+              const response = await withErrorHandling(
+                () => agent.process(input, state),
+                `Agent processing: ${name}`,
+                { success: false, validation_issues: [`Unable to process ${name} information`] }
+              );
+              responses.set(name, response);
+            }
           }
         }
-        break;
       }
-
-      case IntentType.DIMENSION_SPECIFICATION: {
-        const dimensionAgent = this.agents.get('dimension');
-        const dimResponse = await dimensionAgent.process(input, state);
-        responses.set('dimension', dimResponse);
-        break;
-      }
-
-      case IntentType.MATERIAL_SELECTION: {
-        const materialAgent = this.agents.get('material');
-        const matResponse = await materialAgent.process(input, state);
-        responses.set('material', matResponse);
-        break;
-      }
-
-      case IntentType.JOINERY_METHOD: {
-        const joineryAgent = this.agents.get('joinery');
-        const joinResponse = await joineryAgent.process(input, state);
-        responses.set('joinery', joinResponse);
-        break;
-      }
-
-      case IntentType.VALIDATION_CHECK: {
-        const validationAgent = this.agents.get('validation');
-        const valResponse = await validationAgent.process(input, state);
-        responses.set('validation', valResponse);
-        break;
-      }
-
-      default: {
-        // For other intents, check which agents can handle
-        for (const [name, agent] of this.agents.entries()) {
-          if (name !== 'intent' && await agent.canHandle(input, state)) {
-            const response = await agent.process(input, state);
-            responses.set(name, response);
-          }
-        }
-      }
+    } catch (error) {
+      // Log but don't fail the entire routing
+      this.logger.error('Error during agent routing', error);
+      
+      // Add error information to responses
+      const errorInfo: AgentResponse = {
+        success: false,
+        validation_issues: [ErrorHandler.getUserMessage(error)]
+      };
+      responses.set('error', errorInfo);
     }
 
     return responses;
@@ -460,7 +513,20 @@ export class FurnitureDesignOrchestrator {
     return suggestions;
   }
 
-  private getRecoverySuggestions(): string[] {
+  private getRecoverySuggestions(error?: BlueprintError): string[] {
+    // If we have specific recovery strategies, convert them to suggestions
+    if (error?.recoveryStrategies) {
+      const suggestions = error.recoveryStrategies
+        .filter(s => s.action === 'guide')
+        .map(s => s.description)
+        .slice(0, 3);
+      
+      if (suggestions.length > 0) {
+        return suggestions;
+      }
+    }
+    
+    // Default recovery suggestions
     return [
       "Try starting with the type of furniture you want to build",
       "Tell me about your project requirements",

@@ -3,6 +3,7 @@ import { config } from '@/lib/config';
 import { Logger } from '@/lib/logger';
 import { API } from '@/lib/constants';
 import { PerformanceMonitor } from '@/lib/performance';
+import { ErrorHandler, ErrorCode, BlueprintError } from '@/lib/errors';
 
 // Core types for furniture design
 export interface FurnitureDesignRequest {
@@ -72,6 +73,24 @@ export class OpenAIService {
       model: config.api.openai.model,
       backend: this.backendUrl
     });
+
+    const apiKey = config.api.openai.key;
+    if (!apiKey) {
+      this.logger.error('OpenAI API key not configured');
+      throw ErrorHandler.createError(
+        ErrorCode.API_KEY_MISSING,
+        'OpenAI API key is not configured',
+        'Please add your OpenAI API key to use Blueprint Buddy. Set VITE_OPENAI_API_KEY in your environment.',
+        {
+          recoveryStrategies: [
+            {
+              action: 'guide',
+              description: 'Follow the setup guide to configure your API key'
+            }
+          ]
+        }
+      );
+    }
   }
 
   private generateSessionId(): string {
@@ -92,23 +111,86 @@ export class OpenAIService {
         body: JSON.stringify(data)
       });
 
+      if (response.status === 429) {
+        throw ErrorHandler.createError(
+          ErrorCode.API_RATE_LIMIT,
+          'Backend rate limit exceeded',
+          'Too many requests. Please wait a moment and try again.',
+          {
+            recoveryStrategies: [
+              {
+                action: 'retry',
+                description: 'Wait 30 seconds and try again',
+                implementation: async () => {
+                  await new Promise(resolve => setTimeout(resolve, 30000));
+                }
+              }
+            ]
+          }
+        );
+      }
+
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || `Backend request failed: ${response.statusText}`);
+        const errorData = await response.json().catch(() => ({}));
+        
+        if (errorData.error?.includes('Session cost limit exceeded')) {
+          throw ErrorHandler.createError(
+            ErrorCode.SESSION_COST_LIMIT,
+            'Session cost limit exceeded',
+            'You\'ve reached the cost limit for this session. Please start a new session to continue.',
+            {
+              technicalDetails: errorData,
+              recoveryStrategies: [
+                {
+                  action: 'reset',
+                  description: 'Start a new session',
+                  implementation: async () => {
+                    await this.resetSession();
+                  }
+                }
+              ]
+            }
+          );
+        }
+
+        throw ErrorHandler.createError(
+          ErrorCode.API_CONNECTION_ERROR,
+          `Backend request failed: ${response.status}`,
+          'Failed to connect to backend service. Please ensure the backend server is running.',
+          {
+            technicalDetails: { status: response.status, errorData },
+            isRecoverable: false
+          }
+        );
       }
 
       return await response.json();
     } catch (error) {
-      this.logger.error('Backend request failed', error);
-      
-      // Fallback message if backend is not available
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        throw new Error(
-          'Cannot connect to backend server. Please ensure the backend is running on ' + this.backendUrl
+      // Handle connection refused errors
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        throw ErrorHandler.createError(
+          ErrorCode.API_CONNECTION_ERROR,
+          'Backend server not available',
+          'Unable to connect to backend server. Please ensure the backend is running on port 3001.',
+          {
+            cause: error as Error,
+            recoveryStrategies: [
+              {
+                action: 'guide',
+                description: 'Start the backend server with: npm run backend'
+              }
+            ]
+          }
         );
       }
       
-      throw error;
+      // Re-throw if already a BlueprintError
+      if (error instanceof BlueprintError) {
+        throw error;
+      }
+      
+      // Handle other errors
+      throw ErrorHandler.handle(error, 'Backend API request');
     }
   }
 
@@ -134,15 +216,11 @@ export class OpenAIService {
       } catch (error) {
         this.logger.error('Failed to generate response', error);
         
-        if (error instanceof Error && error.message.includes('backend')) {
-          return 'I need the backend server to be running to process your request. Please start the backend server and try again.';
-        }
+        // Use centralized error handling
+        const handledError = ErrorHandler.handle(error, 'generateResponse');
         
-        if (error instanceof Error && error.message.includes('Rate limit')) {
-          return 'I\'m receiving too many requests. Please wait a moment and try again.';
-        }
-        
-        return 'I apologize, but I encountered an error. Please try again.';
+        // Return user-friendly message
+        return handledError.userMessage;
       }
     });
   }
@@ -165,8 +243,13 @@ export class OpenAIService {
         return response.data;
 
       } catch (error) {
-        this.logger.error('Failed to generate agent response', error);
-        throw error;
+        this.logger.error('Failed to get agent response', error);
+        
+        // Use centralized error handling
+        const handledError = ErrorHandler.handle(error, `getAgentResponse:${agentName}`);
+        
+        // For agent responses, we need to throw to maintain the contract
+        throw handledError;
       }
     });
   }

@@ -2,7 +2,7 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 export interface ToastProps extends React.HTMLAttributes<HTMLDivElement> {
-  variant?: "default" | "destructive"
+  variant?: "default" | "destructive" | "success" | "warning"
 }
 
 const Toast = React.forwardRef<HTMLDivElement, ToastProps>(
@@ -14,6 +14,8 @@ const Toast = React.forwardRef<HTMLDivElement, ToastProps>(
           "pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-md border p-6 pr-8 shadow-lg transition-all",
           variant === "default" && "border bg-background text-foreground",
           variant === "destructive" && "destructive group border-destructive bg-destructive text-destructive-foreground",
+          variant === "success" && "border-green-500 bg-green-50 text-green-900 dark:bg-green-900/20 dark:text-green-100",
+          variant === "warning" && "border-yellow-500 bg-yellow-50 text-yellow-900 dark:bg-yellow-900/20 dark:text-yellow-100",
           className
         )}
         {...props}

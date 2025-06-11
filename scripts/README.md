@@ -1,6 +1,6 @@
 # Blueprint Buddy - Setup Scripts
 
-This directory contains scripts for setting up Blueprint Buddy in any environment.
+This directory contains scripts for setting up and maintaining Blueprint Buddy in any environment.
 
 ## 📜 Scripts
 
@@ -45,6 +45,42 @@ Quickly check if your environment is properly configured for Blueprint Buddy dev
 bash scripts/verify-setup.sh
 ```
 
+### `check-setup.js`
+**Quick Node.js-based setup checker**
+
+JavaScript alternative to verify-setup.sh that's integrated with npm scripts.
+
+**Usage:**
+```bash
+npm run check-setup
+```
+
+### `optimize.sh`
+**Dependency optimization script**
+
+Removes unused dependencies and generates bundle analysis reports.
+
+**Features:**
+- Removes unused dependencies automatically
+- Analyzes bundle composition
+- Generates optimization report
+- Suggests further improvements
+
+**Usage:**
+```bash
+npm run optimize
+```
+
+### `start-all.js`
+**Concurrent server launcher**
+
+Starts both frontend and backend servers with one command.
+
+**Usage:**
+```bash
+npm run start:all
+```
+
 ## 🚀 Quick Start
 
 1. **Clone the repository**
@@ -61,27 +97,35 @@ bash scripts/verify-setup.sh
    
    # For local development
    bash scripts/setup.sh
-   # Then add your API key to .env.local
+   # Then add your API key to backend/.env
    ```
 
 3. **Verify setup**
    ```bash
-   bash scripts/verify-setup.sh
+   npm run verify
+   # or
+   npm run check-setup
    ```
 
 4. **Start development**
    ```bash
-   npm run dev
+   npm run start:all
    ```
 
 ## 🔧 Environment Variables
 
-The setup script will create a `.env.local` file if none exists. Add your keys:
+The setup script will help create necessary environment files:
 
+**Backend (.env):**
 ```env
-VITE_OPENAI_API_KEY=sk-your-openai-api-key
-VITE_SUPABASE_URL=https://your-project.supabase.co  # Optional
-VITE_SUPABASE_ANON_KEY=your-supabase-anon-key      # Optional
+OPENAI_API_KEY=sk-your-openai-api-key
+FRONTEND_URL=http://localhost:3000
+```
+
+**Frontend (.env.local):** (Optional)
+```env
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
 ```
 
 ## 🌐 Codex Support
@@ -108,7 +152,7 @@ nvm use 18
 ```bash
 # Clear cache and retry
 npm cache clean --force
-rm -rf node_modules package-lock.json
+rm -rf node_modules package-lock.json backend/node_modules backend/package-lock.json
 bash scripts/setup.sh
 ```
 
@@ -125,8 +169,8 @@ npm run typecheck
 - Check proxy connectivity: `curl -x $HTTP_PROXY https://www.google.com`
 
 **API key not working:**
-- Ensure key is set as Codex secret
-- Verify with: `echo $VITE_OPENAI_API_KEY`
+- Ensure key is set in backend/.env
+- Verify with: `cat backend/.env | grep OPENAI_API_KEY`
 
 ## 📋 Script Exit Codes
 

@@ -4,6 +4,8 @@ import { orchestrator } from '@/services/orchestrator';
 import { useDebounce } from '@/lib/performance';
 import { Logger } from '@/lib/logger';
 import { UI } from '@/lib/constants';
+import { useErrorToast } from './useErrorToast';
+import { ErrorCode } from '@/lib/errors';
 
 interface UseFurnitureDesignReturn {
   messages: Message[];
@@ -42,17 +44,23 @@ export function useFurnitureDesign(): UseFurnitureDesignReturn {
   const isInitialized = useRef(false);
   const messageQueue = useRef<string[]>([]);
   const processingRef = useRef(false);
+  
+  // Use error toast hook
+  const { showErrorToast, withErrorToast, isErrorCode } = useErrorToast();
 
   // Initialize orchestrator on mount
   useEffect(() => {
     if (!isInitialized.current) {
       isInitialized.current = true;
-      orchestrator.initialize().catch(error => {
-        logger.error('Failed to initialize orchestrator:', error);
-        setError(error);
-      });
+      withErrorToast(
+        () => orchestrator.initialize(),
+        'Initializing design system',
+        {
+          onSuccess: () => logger.info('Orchestrator initialized successfully')
+        }
+      );
     }
-  }, []);
+  }, [withErrorToast]);
 
   // Process message queue
   const processQueue = useCallback(async () => {
@@ -92,13 +100,28 @@ export function useFurnitureDesign(): UseFurnitureDesignReturn {
       logger.error('Design error:', error);
       setError(error as Error);
       
+      // Show error toast with recovery actions
+      const handledError = showErrorToast(error, 'Processing design request', {
+        showRecoveryActions: true
+      });
+      
+      // Create error message for chat
+      let errorContent = handledError.userMessage;
+      
+      // Add special handling for API key errors
+      if (isErrorCode(handledError, ErrorCode.API_KEY_MISSING)) {
+        errorContent += '\n\nTo set up your API key:\n1. Get your key from https://platform.openai.com\n2. Set it as: VITE_OPENAI_API_KEY=sk-your-key';
+      }
+      
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: error instanceof Error && error.message.includes('API key') 
-          ? "Please configure your OpenAI API key to use Blueprint Buddy. You can set it as an environment variable: VITE_OPENAI_API_KEY=sk-your-key"
-          : "I apologize, but I encountered an error processing your request. Please try again.",
-        timestamp: new Date()
+        content: errorContent,
+        timestamp: new Date(),
+        metadata: {
+          isError: true,
+          errorCode: handledError instanceof Error ? (handledError as any).code : undefined
+        }
       };
       
       setMessages(prev => [...prev, errorMessage]);
@@ -111,7 +134,7 @@ export function useFurnitureDesign(): UseFurnitureDesignReturn {
         processQueue();
       }
     }
-  }, []);
+  }, [showErrorToast, isErrorCode]);
 
   const sendMessage = useCallback(async (content: string) => {
     if (!content.trim() || content.length > UI.MAX_MESSAGE_LENGTH) {
