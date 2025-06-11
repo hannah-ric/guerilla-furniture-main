@@ -51,3 +51,12 @@ lerna-debug.log*
 
 # OS files
 Thumbs.db
+
+# Log files
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/

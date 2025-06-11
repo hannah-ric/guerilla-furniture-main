@@ -1,0 +1,87 @@
+/**
+ * Central configuration for Blueprint Buddy
+ * All environment variables and settings should be accessed through this module
+ */
+
+export const config = {
+  // API Configuration
+  api: {
+    openai: {
+      key: import.meta.env.VITE_OPENAI_API_KEY || '',
+      model: 'gpt-3.5-turbo',
+      maxTokens: 1000,
+      temperature: 0.7,
+    },
+    supabase: {
+      url: import.meta.env.VITE_SUPABASE_URL || '',
+      anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || '',
+    },
+  },
+
+  // App Configuration
+  app: {
+    name: 'Blueprint Buddy',
+    version: '0.1.0',
+    environment: import.meta.env.MODE,
+    isDevelopment: import.meta.env.DEV,
+    isProduction: import.meta.env.PROD,
+  },
+
+  // Feature Flags
+  features: {
+    supabaseIntegration: !!import.meta.env.VITE_SUPABASE_URL,
+    advancedValidation: true,
+    costEstimation: true,
+    pdfExport: false, // Coming soon
+    userAuthentication: false, // Coming soon
+  },
+
+  // Design Constraints
+  constraints: {
+    maxDimensions: {
+      width: 120, // inches
+      height: 96, // inches
+      depth: 48, // inches
+    },
+    minDimensions: {
+      width: 6, // inches
+      height: 6, // inches
+      depth: 6, // inches
+    },
+    maxCost: 10000, // USD
+    defaultSafetyFactor: 2.5,
+  },
+
+  // UI Configuration
+  ui: {
+    toastDuration: 5000, // ms
+    animationDuration: 200, // ms
+    maxSuggestions: 3,
+    maxMessageLength: 1000,
+  },
+
+  // Development Settings
+  development: {
+    enableLogging: import.meta.env.DEV,
+    enableDebugPanel: import.meta.env.DEV,
+    mockApiResponses: false,
+  },
+} as const;
+
+// Validation to ensure required environment variables are set
+export function validateConfig(): { isValid: boolean; errors: string[] } {
+  const errors: string[] = [];
+
+  if (!config.api.openai.key) {
+    errors.push('OpenAI API key is not configured (VITE_OPENAI_API_KEY)');
+  }
+
+  if (config.features.supabaseIntegration && (!config.api.supabase.url || !config.api.supabase.anonKey)) {
+    errors.push('Supabase configuration is incomplete');
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+  };
+} 

@@ -1,244 +1,221 @@
-import { Agent, AgentContext } from './base/Agent';
-import { 
-  IntentType,
-  BaseAgentResponse as AgentResponse,
-  ValidationAgentResponse 
-} from '@/lib/types';
-import { FurnitureKnowledgeGraph } from '@/services/knowledge/FurnitureKnowledgeGraph';
+import { Agent, AgentConfig } from './base/Agent';
+import { SharedState, ValidationAgentResponse } from '@/lib/types';
+import { openAIService } from '@/services/api/openai';
+import { z } from 'zod';
+
+const ValidationResponseSchema = z.object({
+  is_valid: z.boolean(),
+  physics: z.object({
+    stable: z.boolean(),
+    max_load: z.number(),
+    safety_factor: z.number(),
+    critical_points: z.array(z.string())
+  }),
+  material_strength: z.object({
+    adequate: z.boolean(),
+    utilization: z.number().min(0).max(100),
+    warnings: z.array(z.string())
+  }),
+  joinery_strength: z.object({
+    sufficient: z.boolean(),
+    weakest_point: z.string(),
+    improvements: z.array(z.string())
+  }),
+  overall_score: z.number().min(0).max(100)
+});
 
 export class ValidationAgent extends Agent {
-  name = 'validation_agent';
-
-  constructor(knowledgeGraph: FurnitureKnowledgeGraph) {
-    super(knowledgeGraph);
-    this.interestedEvents = ['design_updated', 'dimension_changed', 'material_changed'];
+  constructor() {
+    const config: AgentConfig = {
+      name: 'ValidationAgent',
+      description: 'Validates structural integrity and buildability',
+      interestedEvents: ['design_complete', 'validation_request', 'major_change'],
+      capabilities: ['structural_analysis', 'safety_validation', 'physics_check']
+    };
+    super(config);
   }
 
-  canHandle(intent: IntentType): boolean {
-    return intent === IntentType.VALIDATION_CHECK;
-  }
-
-  async process(input: string, context: AgentContext): Promise<AgentResponse> {
-    const currentDesign = context.getCurrentDesign();
+  async canHandle(input: string, state: SharedState): Promise<boolean> {
+    const validationKeywords = /\b(validate|check|verify|safe|strong|stable|review|analyze)\b/i;
+    const hasCompleteDesign = !!(state.design.furniture_type && 
+                              state.design.dimensions && 
+                              state.design.materials?.length);
     
-    try {
-      // Validate physics
-      const physics = this.validatePhysics(currentDesign);
-      
-      // Validate material strength
-      const material = this.validateMaterialStrength(currentDesign);
-      
-      // Validate joinery strength
-      const joinery = this.validateJoineryStrength(currentDesign);
-      
-      // Calculate overall score
-      const overallScore = this.calculateOverallScore(physics, material, joinery);
-      
-      const response: ValidationAgentResponse = {
-        is_valid: physics.stable && material.adequate && joinery.sufficient,
-        physics,
-        material_strength: material,
-        joinery_strength: joinery,
-        overall_score: overallScore
-      };
-      
-      const issues = this.collectIssues(physics, material, joinery);
-      const improvements = this.generateImprovements(response, currentDesign);
-      
-      return this.createSuccessResponse(response, {
-        suggestions: improvements,
-        validation_issues: issues,
-        next_steps: response.is_valid ? ['Generate final plans'] : ['Address validation issues']
+    return validationKeywords.test(input) || hasCompleteDesign;
+  }
+
+  async process(input: string, state: SharedState) {
+    this.logger.info('Performing design validation');
+
+    if (!this.hasMinimumDesignData(state)) {
+      return this.createResponse(false, null, {
+        validation_issues: ['Design needs furniture type, dimensions, and materials before validation'],
+        suggestions: ['Complete your design specifications first']
       });
-      
-    } catch (error) {
-      console.error('Validation failed:', error);
-      
-      return this.createErrorResponse(
-        'Could not validate design',
-        ['Please ensure all design parameters are specified']
-      );
     }
-  }
 
-  private validatePhysics(design: any): any {
-    const physics = {
-      stable: true,
-      max_load: 0,
-      safety_factor: 2.0,
-      critical_points: [] as string[]
-    };
-    
-    if (!design.dimensions) {
-      physics.stable = false;
-      physics.critical_points.push('Missing dimensions');
-      return physics;
-    }
-    
-    const { width, height, depth } = design.dimensions;
-    
-    // Stability check
-    const baseArea = Math.min(width || 0, depth || 0);
-    const heightToBaseRatio = (height || 0) / baseArea;
-    
-    if (heightToBaseRatio > 3) {
-      physics.stable = false;
-      physics.critical_points.push('High center of gravity - may tip over');
-    }
-    
-    // Load calculation
-    physics.max_load = this.calculateMaxLoad(design);
-    
-    // Safety factor
-    const expectedLoad = this.estimateLoad(design);
-    physics.safety_factor = physics.max_load / Math.max(expectedLoad, 1);
-    
-    if (physics.safety_factor < 2.0) {
-      physics.stable = false;
-      physics.critical_points.push('Insufficient safety factor');
-    }
-    
-    return physics;
-  }
-
-  private validateMaterialStrength(design: any): any {
-    const material = {
-      adequate: true,
-      utilization: 0,
-      warnings: [] as string[]
-    };
-    
-    if (!design.materials || design.materials.length === 0) {
-      material.adequate = false;
-      material.warnings.push('No materials specified');
-      return material;
-    }
-    
-    const primaryMaterial = design.materials[0];
-    const materialName = typeof primaryMaterial === 'string' ? primaryMaterial : primaryMaterial.type;
-    const materialProps = this.knowledgeGraph.getMaterialProperties(materialName);
-    
-    if (!materialProps) {
-      material.adequate = false;
-      material.warnings.push(`Unknown material: ${materialName}`);
-      return material;
-    }
-    
-    // Check span vs material strength
-    if (design.dimensions?.width) {
-      const maxSpan = this.knowledgeGraph.getMaxSpan(materialName, 0.75); // Assume 3/4" thickness
-      material.utilization = design.dimensions.width / maxSpan;
+    try {
+      const design = state.design;
+      const designSummary = this.createDesignSummary(state);
       
-      if (material.utilization > 1.0) {
-        material.adequate = false;
-        material.warnings.push(`Span exceeds material capacity (${design.dimensions.width}" > ${maxSpan}")`);
-      } else if (material.utilization > 0.8) {
-        material.warnings.push('High material utilization - consider thicker stock');
+      const prompt = `
+You are a structural engineering expert for furniture. Validate this design.
+
+Design Specifications:
+${designSummary}
+
+Perform these validations:
+1. STABILITY CHECK
+   - Center of gravity analysis
+   - Tip-over risk assessment
+   - Base to height ratio
+
+2. LOAD CAPACITY
+   - Material strength vs expected loads
+   - Joint strength analysis
+   - Safety factor calculation (must be >2)
+
+3. DEFLECTION ANALYSIS
+   - Maximum sag for shelves/spans
+   - Use simplified uniformly distributed load
+   - Max deflection = span/360 for furniture
+
+4. FAILURE MODE PREDICTION
+   - Identify weakest points
+   - Predict likely failure sequence
+   - Suggest reinforcements
+
+5. PRACTICAL BUILDABILITY
+   - Assembly feasibility
+   - Tool requirements
+   - Common mistakes to avoid
+
+Material Properties Reference:
+- Pine: Modulus of Rupture = 8,600 psi, Modulus of Elasticity = 1.2M psi
+- Oak: MOR = 14,300 psi, MOE = 1.8M psi
+- Plywood (3/4"): MOR = 5,000 psi, MOE = 1.5M psi
+
+Standard Loads:
+- Books: 15-25 lbs/ft on shelves
+- Tabletop: 50 lbs/sq ft
+- Seating: 300 lbs concentrated load
+
+Respond with a JSON object matching the ValidationResponseSchema.`;
+
+      const response = await openAIService.generateResponse(prompt);
+      
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('No JSON found in response');
       }
+      
+      const validationData = ValidationResponseSchema.parse(JSON.parse(jsonMatch[0]));
+      
+      // Update shared state with validation results
+      const stateManager = (await import('@/services/state/SharedStateManager')).SharedStateManager.getInstance();
+      stateManager.setValidationResult(this.config.name, validationData);
+      stateManager.updateDesign(this.config.name, {
+        validation_status: validationData.is_valid ? 'valid' : 'invalid'
+      }, 'Validation completed');
+      
+      this.logger.info('Validation complete', { 
+        valid: validationData.is_valid,
+        score: validationData.overall_score 
+      });
+
+      const issues = [
+        ...validationData.material_strength.warnings,
+        ...validationData.physics.critical_points
+      ];
+
+      return this.createResponse(validationData.is_valid, validationData, {
+        confidence: 0.9,
+        validation_issues: issues,
+        suggestions: this.generateImprovementSuggestions(validationData)
+      });
+
+    } catch (error) {
+      this.logger.error('Validation failed', error);
+      
+      return this.createResponse(false, null, {
+        validation_issues: ['Failed to complete validation'],
+        suggestions: ['Please ensure all design parameters are specified']
+      });
     }
-    
-    return material;
   }
 
-  private validateJoineryStrength(design: any): any {
-    const joinery = {
-      sufficient: true,
-      weakest_point: '',
-      improvements: [] as string[]
-    };
-    
-    if (!design.joinery || design.joinery.length === 0) {
-      joinery.sufficient = false;
-      joinery.weakest_point = 'No joinery specified';
-      joinery.improvements.push('Add appropriate joinery methods');
-      return joinery;
+  async validate(state: SharedState) {
+    // This agent IS the validator, so just check if we can validate
+    if (!this.hasMinimumDesignData(state)) {
+      return this.createResponse(false, { 
+        valid: false, 
+        reason: 'Insufficient design data for validation' 
+      });
     }
     
-    const primaryJoint = design.joinery[0];
-    const jointName = typeof primaryJoint === 'string' ? primaryJoint : primaryJoint.type;
+    // Run full validation
+    return this.process('validate design', state);
+  }
+
+  private hasMinimumDesignData(state: SharedState): boolean {
+    const design = state.design;
+    return !!(
+      design.furniture_type &&
+      design.dimensions &&
+      design.materials && design.materials.length > 0
+    );
+  }
+
+  private createDesignSummary(state: SharedState): string {
+    const design = state.design;
+    const parts = [];
     
-    // Basic joint strength assessment
-    const jointStrengths: Record<string, number> = {
-      'screw': 300,
-      'dowel': 400,
-      'mortise_tenon': 800,
-      'dovetail': 700,
-      'pocket_hole': 350
-    };
+    parts.push(`Furniture Type: ${design.furniture_type}`);
     
-    const strength = jointStrengths[jointName] || 200;
-    const requiredStrength = this.estimateLoad(design) * 2; // 2x safety factor
-    
-    if (strength < requiredStrength) {
-      joinery.sufficient = false;
-      joinery.weakest_point = jointName;
-      joinery.improvements.push(`Consider stronger joinery (current: ${strength}lbs, required: ${requiredStrength}lbs)`);
+    if (design.dimensions) {
+      parts.push(`Dimensions: ${design.dimensions.width}" W x ${design.dimensions.height}" H x ${design.dimensions.depth}" D`);
     }
     
-    return joinery;
-  }
-
-  private calculateMaxLoad(design: any): number {
-    // Simplified load calculation
-    const baseLoad = 100; // pounds
-    const materialFactor = design.materials?.length > 0 ? 1.5 : 1.0;
-    const sizeFactor = design.dimensions ? 
-      Math.sqrt((design.dimensions.width || 12) * (design.dimensions.depth || 12)) / 12 : 1.0;
-    
-    return Math.floor(baseLoad * materialFactor * sizeFactor);
-  }
-
-  private estimateLoad(design: any): number {
-    // Estimate expected load based on furniture type
-    const typeLoads: Record<string, number> = {
-      'bookshelf': 150,
-      'table': 100,
-      'chair': 250,
-      'desk': 75
-    };
-    
-    return typeLoads[design.furniture_type] || 50;
-  }
-
-  private calculateOverallScore(physics: any, material: any, joinery: any): number {
-    let score = 0;
-    
-    if (physics.stable) score += 40;
-    if (material.adequate) score += 30;
-    if (joinery.sufficient) score += 30;
-    
-    // Bonus for good safety factors
-    if (physics.safety_factor > 3) score += 10;
-    if (material.utilization < 0.5) score += 5;
-    
-    return Math.min(score, 100);
-  }
-
-  private collectIssues(physics: any, material: any, joinery: any): string[] {
-    const issues: string[] = [];
-    
-    if (!physics.stable) issues.push(...physics.critical_points);
-    if (!material.adequate) issues.push(...material.warnings);
-    if (!joinery.sufficient) issues.push(...joinery.improvements);
-    
-    return issues;
-  }
-
-  private generateImprovements(validation: any, design: any): string[] {
-    const improvements: string[] = [];
-    
-    if (!validation.is_valid) {
-      improvements.push('Address structural issues before proceeding');
+    if (design.materials?.length) {
+      parts.push(`Primary Material: ${design.materials[0].type}`);
     }
     
-    if (validation.physics.safety_factor < 3) {
-      improvements.push('Consider adding reinforcements for better safety');
+    if (design.joinery?.length) {
+      parts.push(`Primary Joinery: ${design.joinery[0].type}`);
     }
     
-    if (validation.material_strength.utilization > 0.7) {
-      improvements.push('Use thicker material for better strength margin');
+    if (state.constraints.structural) {
+      parts.push(`Min Load Capacity: ${state.constraints.structural.min_load_capacity} kg`);
+      parts.push(`Safety Factor Required: ${state.constraints.structural.min_safety_factor}`);
     }
     
-    return improvements;
+    return parts.join('\n');
   }
-}
+
+  private generateImprovementSuggestions(data: ValidationAgentResponse): string[] {
+    const suggestions: string[] = [];
+    
+    if (!data.physics.stable) {
+      suggestions.push('Add a wider base or lower the center of gravity for stability');
+    }
+    
+    if (data.physics.safety_factor < 2) {
+      suggestions.push('Reinforce the design to achieve a safety factor of at least 2');
+    }
+    
+    if (data.material_strength.utilization > 80) {
+      suggestions.push('Consider using thicker material or adding support structures');
+    }
+    
+    if (!data.joinery_strength.sufficient) {
+      suggestions.push(`Strengthen the ${data.joinery_strength.weakest_point}`);
+      suggestions.push(...data.joinery_strength.improvements);
+    }
+    
+    if (data.overall_score < 70) {
+      suggestions.push('Consider consulting with an experienced woodworker for this design');
+    }
+    
+    return suggestions;
+  }
+} 

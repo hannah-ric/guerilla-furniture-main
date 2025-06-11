@@ -213,27 +213,6 @@ Before submitting changes:
 - [Tailwind CSS Reference](https://tailwindcss.com/docs)
 - [Vite Configuration](https://vitejs.dev/config/)
 
-## 🌐 Codex Environment Setup
-
-### Quick Start for Codex
-1. **Set OpenAI API key as a Codex secret**: `VITE_OPENAI_API_KEY=sk-your-key`
-2. **Run setup**: `bash scripts/setup.sh` 
-3. **Verify**: `npm run verify:full`
-4. **Start developing**: `npm run dev`
-
-### Environment Scripts
-- `scripts/setup.sh` - Complete environment setup with proxy detection
-- `scripts/codex-env.sh` - Environment configuration only
-- `scripts/verify-setup.sh` - Comprehensive verification
-
-### Proxy Configuration
-The application automatically detects and configures Codex proxy settings:
-- Uses `$CODEX_PROXY_CERT` for certificate trust
-- Configures npm and Node.js for proxy usage
-- Sets appropriate environment variables
-
-See `CODEX.md` for detailed Codex configuration information.
-
 ## 🆘 Getting Help
 
 When working on this codebase:
@@ -242,6 +221,5 @@ When working on this codebase:
 3. Test with the interactive designer interface
 4. Use the Logger utility for debugging
 5. Check API cost tracking in development
-6. **In Codex**: Run `npm run verify:full` to check your environment
 
 Remember: This is a furniture design tool, so always consider real-world buildability, safety, and user skill levels in your implementations. 

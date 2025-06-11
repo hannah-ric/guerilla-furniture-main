@@ -1,159 +1,136 @@
 # Blueprint Buddy - Setup Scripts
 
-This directory contains scripts for setting up and configuring Blueprint Buddy in various environments, particularly Codex.
+This directory contains scripts for setting up Blueprint Buddy in any environment.
 
-## 📜 Scripts Overview
+## 📜 Scripts
 
 ### `setup.sh`
-**Main setup script for Codex environments**
+**Universal setup script for all environments**
 
-- Detects Codex environment automatically
-- Configures proxy settings and certificates
-- Installs all dependencies
-- Runs verification tests
-- Sets up development tools
+Automatically detects and configures for Codex environments while supporting standard development setups.
+
+**Features:**
+- Environment detection (Codex/Standard)
+- Automatic proxy configuration
+- Dependency installation
+- Optional validation checks
+- Environment file creation
 
 **Usage:**
 ```bash
+# Full setup with validations (default)
 bash scripts/setup.sh
-# or
-npm run setup
-```
 
-### `codex-env.sh`
-**Environment configuration for Codex**
+# Quick setup (skip validations)
+bash scripts/setup.sh quick
 
-- Sets environment variables
-- Configures proxy settings
-- Validates OpenAI API key availability
-- Displays configuration summary
-
-**Usage:**
-```bash
-source scripts/codex-env.sh
-# or
-npm run setup:codex
+# Show help
+bash scripts/setup.sh --help
 ```
 
 ### `verify-setup.sh`
-**Complete environment verification**
+**Environment verification script**
 
-- Checks system requirements
-- Validates network configuration
-- Tests build process
-- Verifies project structure
-- Provides detailed pass/fail report
+Quickly check if your environment is properly configured for Blueprint Buddy development.
+
+**Checks:**
+- System requirements (Node.js 18+, npm)
+- Project structure
+- Dependencies
+- Environment variables
+- Build status
 
 **Usage:**
 ```bash
 bash scripts/verify-setup.sh
-# or
-npm run verify:full
 ```
 
-## 🚀 Quick Start for Codex
+## 🚀 Quick Start
 
-1. **Set your OpenAI API key as a Codex secret:**
-   ```
-   VITE_OPENAI_API_KEY=sk-your-api-key-here
-   ```
-
-2. **Run the setup script:**
+1. **Clone the repository**
    ```bash
-   bash scripts/setup.sh
+   git clone <repository-url>
+   cd blueprint-buddy
    ```
 
-3. **Verify everything is working:**
+2. **Run setup**
+   ```bash
+   # For Codex environments
+   export VITE_OPENAI_API_KEY=sk-your-key
+   bash scripts/setup.sh
+   
+   # For local development
+   bash scripts/setup.sh
+   # Then add your API key to .env.local
+   ```
+
+3. **Verify setup**
    ```bash
    bash scripts/verify-setup.sh
    ```
 
-4. **Start development:**
+4. **Start development**
    ```bash
    npm run dev
    ```
 
-## 🔧 Manual Configuration
+## 🔧 Environment Variables
 
-If automatic setup fails, you can manually configure:
+The setup script will create a `.env.local` file if none exists. Add your keys:
 
-```bash
-# Set environment variables
-source scripts/codex-env.sh
-
-# Install dependencies
-npm install
-
-# Verify setup
-npm run verify
+```env
+VITE_OPENAI_API_KEY=sk-your-openai-api-key
+VITE_SUPABASE_URL=https://your-project.supabase.co  # Optional
+VITE_SUPABASE_ANON_KEY=your-supabase-anon-key      # Optional
 ```
 
-## 🌐 Proxy Configuration
+## 🌐 Codex Support
 
-The scripts automatically handle Codex proxy configuration:
+The setup script automatically detects Codex environments by checking for `$CODEX_PROXY_CERT` and configures:
+- HTTP/HTTPS proxy settings
+- npm proxy configuration  
+- Certificate trust
+- Environment variables
 
-- **Automatic Detection**: Uses `$CODEX_PROXY_CERT` environment variable
-- **npm Configuration**: Sets proxy and certificate settings
-- **Environment Variables**: Exports HTTP_PROXY, HTTPS_PROXY, NODE_EXTRA_CA_CERTS
-- **Persistence**: Adds settings to ~/.bashrc
+## ❓ Troubleshooting
 
-## ✅ Verification Checklist
+### Setup Issues
 
-The verification script checks:
-
-- [x] Node.js >= 18
-- [x] npm installed
-- [x] Proxy configuration (if in Codex)
-- [x] OpenAI API key set
-- [x] Dependencies installed
-- [x] TypeScript compilation
-- [x] ESLint passes
-- [x] Build completes successfully
-- [x] Project structure intact
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-**Proxy Connection Failed:**
+**Node.js version error:**
 ```bash
-# Check proxy settings
-echo $HTTP_PROXY
-echo $HTTPS_PROXY
-
-# Test connectivity
-curl -x $HTTP_PROXY https://api.openai.com/v1/models
+# Install Node.js 18+ using nvm
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+nvm install 18
+nvm use 18
 ```
 
-**Build Failures:**
+**Dependency installation fails:**
 ```bash
-# Clean and rebuild
-npm run clean
-npm install
-npm run build
-```
-
-**Missing Dependencies:**
-```bash
-# Reinstall everything
+# Clear cache and retry
+npm cache clean --force
 rm -rf node_modules package-lock.json
-npm install
+bash scripts/setup.sh
 ```
 
-### Getting Help
+**TypeScript errors:**
+```bash
+# Check specific errors
+npm run typecheck
+```
 
-1. Run the verification script: `npm run verify:full`
-2. Check the console output for specific errors
-3. Review the AGENTS.md and CODEX.md documentation
-4. Ensure your OpenAI API key is properly set
+### Codex-specific Issues
 
-## 📋 Script Dependencies
+**Proxy connection failed:**
+- Verify `$CODEX_PROXY_CERT` is set
+- Check proxy connectivity: `curl -x $HTTP_PROXY https://www.google.com`
 
-These scripts require:
-- bash shell
-- Node.js >= 18
-- npm >= 8
-- curl (for connectivity tests)
-- Standard Unix utilities (chmod, grep, etc.)
+**API key not working:**
+- Ensure key is set as Codex secret
+- Verify with: `echo $VITE_OPENAI_API_KEY`
 
-All requirements are typically available in Codex environments by default. 
+## 📋 Script Exit Codes
+
+- `0` - Success
+- `1` - Failure (check output for details)
+
+The setup script logs to `/tmp/blueprint-buddy-setup.log` for debugging. 

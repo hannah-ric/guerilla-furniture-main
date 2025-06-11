@@ -7,7 +7,7 @@ import tsParser from '@typescript-eslint/parser';
 
 export default [
   {
-    ignores: ['dist', '.eslintrc.cjs'],
+    ignores: ['dist', '.eslintrc.cjs', 'node_modules', '*.config.js', '*.config.ts'],
   },
   {
     files: ['**/*.{ts,tsx}'],
@@ -28,11 +28,15 @@ export default [
         'warn',
         { allowConstantExport: true },
       ],
-      '@typescript-eslint/no-unused-vars': 'off',
+      '@typescript-eslint/no-unused-vars': ['warn', { 
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        ignoreRestSiblings: true 
+      }],
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/ban-ts-comment': 'off',
-      'no-unused-vars': 'warn',  // Downgrade to warning
-      'no-undef': 'off',         // Disable for TypeScript files
+      'no-unused-vars': 'off',  // Use TypeScript's version instead
+      'no-undef': 'off',        // TypeScript handles this
     },
   },
 ]; 

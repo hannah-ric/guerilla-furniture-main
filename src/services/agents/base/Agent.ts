@@ -1,82 +1,67 @@
-// services/agents/base/Agent.ts
-import { 
-  IntentType, 
-  AgentMessage, 
-  BaseAgentResponse as AgentResponse
-} from '@/lib/types';
-import { FurnitureKnowledgeGraph } from '@/services/knowledge/FurnitureKnowledgeGraph';
+import { Logger } from '@/lib/logger';
+import { AgentResponse, SharedState } from '@/lib/types';
 
-export interface AgentContext {
-  getCurrentDesign: () => any;
-  fromAgent?: string;
-  sharedState?: any;
+export interface AgentConfig {
+  name: string;
+  description: string;
+  interestedEvents: string[];
+  capabilities: string[];
 }
 
 export abstract class Agent {
-  abstract name: string;
-  protected knowledgeGraph: FurnitureKnowledgeGraph;
-  protected interestedEvents: string[] = [];
+  protected logger: ReturnType<typeof Logger.createScoped>;
+  public readonly config: AgentConfig;
   
-  // Injected by communication bus
-  protected query?: (targetAgent: string, query: any, options?: any) => Promise<any>;
-  protected broadcast?: (eventType: string, data: any) => Promise<void>;
-  protected requestValidation?: (design: any) => Promise<Map<string, any>>;
-
-  constructor(knowledgeGraph: FurnitureKnowledgeGraph) {
-    this.knowledgeGraph = knowledgeGraph;
+  constructor(config: AgentConfig) {
+    this.config = config;
+    this.logger = Logger.createScoped(config.name);
+    this.logger.info('Agent initialized', { capabilities: config.capabilities });
   }
-
-  abstract canHandle(intent: IntentType | string): boolean;
   
-  abstract process(
-    input: string, 
-    context: AgentContext
-  ): Promise<AgentResponse>;
-
-  async handleMessage?(message: AgentMessage): Promise<any> {
-    // Default implementation
-    if (message.type === 'query') {
-      return this.process(
-        JSON.stringify(message.payload),
-        { 
-          getCurrentDesign: () => ({}),
-          fromAgent: message.from_agent 
-        }
-      );
-    }
-    return null;
+  /**
+   * Check if this agent can handle the given input
+   */
+  abstract canHandle(input: string, state: SharedState): Promise<boolean>;
+  
+  /**
+   * Process the input and return a response
+   */
+  abstract process(input: string, state: SharedState): Promise<AgentResponse>;
+  
+  /**
+   * Validate the current state for this agent's domain
+   */
+  abstract validate(state: SharedState): Promise<AgentResponse>;
+  
+  /**
+   * Get agent's current confidence in the design
+   */
+  getConfidence(state: SharedState): number {
+    return 0.5; // Default medium confidence
   }
-
-  getInterestedEvents(): string[] {
-    return this.interestedEvents;
+  
+  /**
+   * Check if agent is interested in a state change
+   */
+  isInterestedIn(event: string): boolean {
+    return this.config.interestedEvents.includes(event);
   }
-
-  protected createSuccessResponse(
-    data: any,
-    extras: Partial<AgentResponse> = {}
+  
+  /**
+   * Helper to create standard response
+   */
+  protected createResponse(
+    success: boolean, 
+    data: any, 
+    options: Partial<AgentResponse> = {}
   ): AgentResponse {
     return {
-      success: true,
+      success,
       data,
-      suggestions: [],
-      validation_issues: [],
-      next_steps: [],
-      confidence: 0.9,
-      ...extras
+      suggestions: options.suggestions || [],
+      validation_issues: options.validation_issues || [],
+      next_steps: options.next_steps || [],
+      confidence: options.confidence || this.getConfidence({} as SharedState)
     };
   }
-
-  protected createErrorResponse(
-    error: string,
-    suggestions: string[] = []
-  ): AgentResponse {
-    return {
-      success: false,
-      data: null,
-      validation_issues: [error],
-      suggestions,
-      next_steps: [],
-      confidence: 0
-    };
-  }
-}
+} 

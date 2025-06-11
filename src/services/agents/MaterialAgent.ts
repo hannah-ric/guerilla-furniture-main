@@ -1,343 +1,190 @@
-import { z } from 'zod';
-import { Agent, AgentContext } from './base/Agent';
-import { 
-  IntentType,
-  BaseAgentResponse as AgentResponse,
-  MaterialAgentResponse 
-} from '@/lib/types';
-import { FurnitureKnowledgeGraph } from '@/services/knowledge/FurnitureKnowledgeGraph';
-import { PROMPTS, formatPrompt } from '@/lib/prompts';
+import { Agent, AgentConfig } from './base/Agent';
+import { SharedState, MaterialAgentResponse } from '@/lib/types';
 import { openAIService } from '@/services/api/openai';
+import { z } from 'zod';
 
-// Schema for structured material selection
-const MaterialSelectionSchema = z.object({
+const MaterialResponseSchema = z.object({
   primary_material: z.object({
     name: z.string(),
-    type: z.enum(['solid_wood', 'plywood', 'mdf', 'particle_board', 'metal', 'glass', 'other']),
-    species: z.string().optional(),
+    type: z.string(),
     properties: z.object({
-      workability: z.enum(['easy', 'moderate', 'difficult']),
       cost_per_board_foot: z.number(),
-      indoor_outdoor: z.enum(['indoor', 'outdoor', 'both']),
+      workability: z.enum(['easy', 'moderate', 'difficult']),
+      durability: z.string(),
       hardness: z.number().optional(),
-      modulus_rupture: z.number().optional(),
-      modulus_elasticity: z.number().optional(),
-      density: z.number().optional()
+      indoor_outdoor: z.enum(['indoor', 'outdoor', 'both']).optional()
     }),
-    reasoning: z.string()
+    cost_estimate: z.number()
   }),
   alternatives: z.array(z.object({
     name: z.string(),
     reason: z.string(),
-    cost_relative: z.enum(['cheaper', 'similar', 'more_expensive'])
+    cost_estimate: z.number()
   })),
-  cost_estimate: z.number(),
-  board_feet_needed: z.number(),
-  compatibility_notes: z.object({
-    with_dimensions: z.string(),
-    with_environment: z.string(),
-    with_joinery: z.string().optional()
+  compatibility: z.object({
+    with_dimensions: z.boolean(),
+    with_environment: z.boolean(),
+    with_budget: z.boolean()
   })
 });
 
 export class MaterialAgent extends Agent {
-  name = 'material_agent';
-
-  constructor(knowledgeGraph: FurnitureKnowledgeGraph) {
-    super(knowledgeGraph);
-    this.interestedEvents = ['dimensions_updated', 'constraint_updated'];
+  constructor() {
+    const config: AgentConfig = {
+      name: 'MaterialAgent',
+      description: 'Handles material selection and compatibility',
+      interestedEvents: ['material_update', 'budget_change', 'environment_change'],
+      capabilities: ['material_selection', 'cost_estimation', 'compatibility_check']
+    };
+    super(config);
   }
 
-  canHandle(intent: IntentType): boolean {
-    return intent === IntentType.MATERIAL_SELECTION ||
-           intent === IntentType.CONSTRAINT_SPECIFICATION;
-  }
-
-  async process(input: string, context: AgentContext): Promise<AgentResponse> {
-    const currentDesign = context.getCurrentDesign();
+  async canHandle(input: string, state: SharedState): Promise<boolean> {
+    const materialKeywords = /\b(wood|pine|oak|maple|walnut|plywood|mdf|material|lumber|board)\b/i;
+    const qualityKeywords = /\b(cheap|expensive|budget|premium|quality|durable)\b/i;
     
+    return materialKeywords.test(input) || qualityKeywords.test(input);
+  }
+
+  async process(input: string, state: SharedState) {
+    this.logger.info('Processing material selection', { input: input.substring(0, 100) });
+
     try {
-      // Gather context for material selection
-      const constraints = await this.gatherConstraints(currentDesign);
-      const knowledgeContext = this.getKnowledgeContext(currentDesign);
+      const furnitureType = state.design.furniture_type || 'furniture';
+      const dimensions = state.design.dimensions;
+      const budget = state.constraints.budget?.max_total_cost;
+      const skillLevel = 'intermediate'; // Default for now
       
-      // Prepare prompt with all context
-      const prompt = formatPrompt(PROMPTS.MATERIAL_SELECTION_PROMPT, {
-        furniture_type: currentDesign.furniture_type || 'general',
-        dimensions: JSON.stringify(currentDesign.dimensions || {}),
-        environment: constraints.environment || 'indoor',
-        budget_level: constraints.budget || 'medium',
-        skill_level: currentDesign.skill_level || 'intermediate',
-        input: input,
-        available_materials: knowledgeContext.availableMaterials.join(', '),
-        span_requirements: knowledgeContext.spanRequirements
-      });
+      const prompt = `
+You are a wood and material expert for furniture making. Help select appropriate materials.
 
-      // Make LLM call with structured output
-      const response = await openAIService.structuredCall(
-        prompt,
-        MaterialSelectionSchema,
-        {
-          model: 'gpt-3.5-turbo-1106',
-          temperature: 0.2, // Slightly more creative for alternatives
-          maxTokens: 1000
-        }
-      );
+Project Details:
+- Furniture Type: ${furnitureType}
+- Dimensions: ${dimensions ? `${dimensions.width}" x ${dimensions.height}" x ${dimensions.depth}"` : 'Not specified'}
+- Budget: ${budget ? `$${budget}` : 'Not specified'}
+- User Skill: ${skillLevel}
 
-      const selection = response.data;
+User Request: "${input}"
 
-      // Validate with knowledge graph
-      const materialProps = this.knowledgeGraph.materialProperties.get(selection.primary_material.name);
-      if (materialProps) {
-        // Enrich with actual properties
-        selection.primary_material.properties = {
-          cost_per_board_foot: materialProps.cost_per_board_foot,
-          workability: materialProps.workability,
-          indoor_outdoor: materialProps.indoor_outdoor || 'indoor',
-          hardness: materialProps.hardness,
-          modulus_rupture: materialProps.modulus_rupture,
-          modulus_elasticity: materialProps.modulus_elasticity,
-          density: materialProps.density
-        };
+Consider:
+1. Structural requirements (load, span, stress)
+2. Workability for user's skill level
+3. Cost and availability
+4. Aesthetic match with intended style
+5. Durability and maintenance needs
+6. Sustainability (prefer FSC certified when possible)
+
+Wood Properties Reference:
+- Pine: Soft, affordable, easy to work, 420 Janka, $3-5/bf
+- Oak: Hard, durable, moderate cost, 1290 Janka, $8-12/bf
+- Maple: Very hard, smooth finish, higher cost, 1450 Janka, $10-15/bf
+- Walnut: Premium, beautiful grain, expensive, 1010 Janka, $15-25/bf
+- Plywood: Stable, various grades, good for panels, $30-80/sheet
+- MDF: Smooth, paintable, avoid moisture, $25-40/sheet
+
+Calculate estimated material cost based on dimensions if provided.
+
+Respond with a JSON object matching the MaterialResponseSchema.`;
+
+      const response = await openAIService.generateResponse(prompt);
+      
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('No JSON found in response');
       }
-
-      // Check compatibility
-      const compatibility = this.validateMaterialCompatibility(
-        selection.primary_material,
-        currentDesign,
-        constraints
-      );
-
-      // Format response
-      const materialResponse: MaterialAgentResponse = {
-        primary_material: {
-          name: selection.primary_material.name,
-          type: selection.primary_material.type,
-          properties: selection.primary_material.properties,
-          cost_estimate: selection.cost_estimate
-        },
-        alternatives: selection.alternatives.map(alt => ({
-          name: alt.name,
-          reason: alt.reason,
-          cost_estimate: this.estimateCost(alt.name, selection.board_feet_needed)
-        })),
-        compatibility
-      };
-
-      return this.createSuccessResponse(materialResponse, {
-        suggestions: this.generateMaterialSuggestions(selection, currentDesign, compatibility),
-        next_steps: ['Select joinery methods compatible with ' + selection.primary_material.name],
-        confidence: response.usage.estimatedCost < 0.02 ? 0.9 : 0.85
-      });
       
+      const materialData = MaterialResponseSchema.parse(JSON.parse(jsonMatch[0]));
+      
+      // Update shared state with material selection
+      const stateManager = (await import('@/services/state/SharedStateManager')).SharedStateManager.getInstance();
+      stateManager.updateDesign(this.config.name, {
+        materials: [{
+          type: materialData.primary_material.type,
+          properties: materialData.primary_material.properties
+        }],
+        estimated_cost: materialData.primary_material.cost_estimate
+      }, 'Material selected based on requirements');
+      
+      this.logger.info('Material selected', { 
+        material: materialData.primary_material.name,
+        cost: materialData.primary_material.cost_estimate 
+      });
+
+      return this.createResponse(true, materialData, {
+        confidence: 0.85,
+        suggestions: this.generateSuggestions(materialData, furnitureType, budget)
+      });
+
     } catch (error) {
-      console.error('Material selection failed:', error);
+      this.logger.error('Material selection failed', error);
       
-      // Fall back to rule-based selection
-      const fallbackResult = this.selectMaterialWithRules(input, currentDesign);
-      
-      return this.createSuccessResponse(fallbackResult, {
-        suggestions: ['Consider your budget and skill level when choosing materials'],
-        confidence: 0.6
+      return this.createResponse(false, null, {
+        validation_issues: ['Failed to select materials'],
+        suggestions: ['Try specifying your preferred wood type or budget']
       });
     }
   }
 
-  private async gatherConstraints(design: any): Promise<any> {
-    const constraints: any = {
-      budget: 'medium',
-      environment: 'indoor',
-      workability: 'moderate'
-    };
-    
-    // Extract from design
-    if (design.constraints?.budget) {
-      constraints.budget = design.constraints.budget;
+  async validate(state: SharedState) {
+    if (!state.design.materials?.length) {
+      return this.createResponse(true, { valid: true }); // No materials to validate
     }
-    
-    if (design.constraints?.environment) {
-      constraints.environment = design.constraints.environment;
-    }
-    
-    if (design.skill_level === 'beginner') {
-      constraints.workability = 'easy';
-    }
-    
-    // Dimensional constraints
-    if (design.dimensions) {
-      const span = design.dimensions.width || 0;
-      constraints.minThickness = this.knowledgeGraph.getMinThickness('pine', span);
-    }
-    
-    return constraints;
-  }
 
-  private getKnowledgeContext(design: any): any {
-    const availableMaterials = Array.from(this.knowledgeGraph.materialProperties.keys());
+    const materials = state.design.materials;
+    const dimensions = state.design.dimensions;
+    const issues: string[] = [];
     
-    let spanRequirements = '';
-    if (design.dimensions?.width) {
-      const span = design.dimensions.width;
-      spanRequirements = `Maximum span of ${span}" requires consideration of material thickness and strength.`;
-    }
-    
-    return {
-      availableMaterials,
-      spanRequirements
-    };
-  }
-
-  private validateMaterialCompatibility(
-    material: any,
-    design: any,
-    constraints: any
-  ): any {
-    const compatibility = {
-      with_dimensions: true,
-      with_environment: true,
-      with_budget: true
-    };
-    
-    // Check span requirements
-    if (design.dimensions?.width) {
-      const maxSpan = this.knowledgeGraph.getMaxSpan(
-        material.name,
-        design.board_thickness || 0.75
+    // Check material suitability for dimensions
+    if (dimensions && dimensions.width > 24) {
+      const hasSheetGoods = materials.some(m => 
+        m.type === 'plywood' || m.type === 'mdf'
       );
-      compatibility.with_dimensions = design.dimensions.width <= maxSpan;
+      if (!hasSheetGoods) {
+        issues.push('Wide spans may require sheet goods or laminated boards');
+      }
     }
     
-    // Check environment
-    if (constraints.environment === 'outdoor' && material.properties.indoor_outdoor === 'indoor') {
-      compatibility.with_environment = false;
+    // Check outdoor compatibility
+    const needsOutdoor = state.constraints.material?.indoor_outdoor === 'outdoor';
+    if (needsOutdoor) {
+      const hasOutdoorMaterial = materials.some(m => 
+        m.properties.indoor_outdoor === 'outdoor' || 
+        m.properties.indoor_outdoor === 'both'
+      );
+      if (!hasOutdoorMaterial) {
+        issues.push('Selected materials may not be suitable for outdoor use');
+      }
     }
     
-    // Check budget (simplified)
-    const budgetLimits: Record<string, number> = {
-      low: 5,
-      medium: 10,
-      high: 20
-    };
-    
-    if (constraints.budget && budgetLimits[constraints.budget]) {
-      compatibility.with_budget = material.properties.cost_per_board_foot <= budgetLimits[constraints.budget];
-    }
-    
-    return compatibility;
+    return this.createResponse(
+      issues.length === 0,
+      { valid: issues.length === 0, issues },
+      { validation_issues: issues }
+    );
   }
 
-  private generateMaterialSuggestions(
-    selection: any,
-    design: any,
-    compatibility: any
+  private generateSuggestions(
+    data: MaterialAgentResponse, 
+    furnitureType: string,
+    budget?: number
   ): string[] {
     const suggestions: string[] = [];
-    const material = selection.primary_material;
     
-    // Workability tips
-    if (material.properties.workability === 'easy') {
-      suggestions.push(`${material.name} is beginner-friendly and forgiving to work with`);
-    } else if (material.properties.workability === 'difficult') {
-      suggestions.push(`${material.name} requires sharp tools and careful handling`);
+    if (!data.compatibility.with_budget && budget) {
+      suggestions.push('Consider the alternative materials listed to stay within budget');
     }
     
-    // Cost insights
-    if (material.properties.cost_per_board_foot < 5) {
-      suggestions.push('This is a cost-effective choice for your project');
-    } else if (material.properties.cost_per_board_foot > 10) {
-      suggestions.push(`Premium material - total cost estimate: $${selection.cost_estimate}`);
+    if (data.primary_material.properties.workability === 'difficult') {
+      suggestions.push('This material requires advanced woodworking skills');
     }
     
-    // Compatibility warnings
-    if (!compatibility.with_dimensions) {
-      suggestions.push('Consider thicker stock or add support for this span');
-    }
-    
-    if (!compatibility.with_environment) {
-      suggestions.push('This material may not be suitable for outdoor use');
-    }
-    
-    // Wood movement for solid wood
-    if (material.type === 'solid_wood' && design.dimensions?.width > 12) {
-      suggestions.push('Remember to account for wood movement in wide panels');
+    // Material-specific suggestions
+    if (data.primary_material.type === 'solid_wood') {
+      suggestions.push('Remember to account for wood movement in your joinery');
+    } else if (data.primary_material.type === 'plywood') {
+      suggestions.push('Consider edge banding for a finished look');
     }
     
     return suggestions;
   }
-
-  private estimateCost(materialName: string, boardFeet: number): number {
-    const props = this.knowledgeGraph.materialProperties.get(materialName);
-    if (!props) return 100; // Default estimate
-    
-    return Math.ceil(boardFeet * props.cost_per_board_foot);
-  }
-
-  // Fallback rule-based selection
-  private selectMaterialWithRules(input: string, design: any): MaterialAgentResponse {
-    const lower = input.toLowerCase();
-    
-    // Detect specific wood mentions
-    const woodTypes = ['oak', 'pine', 'maple', 'walnut', 'cherry', 'plywood', 'mdf'];
-    let selectedWood = 'pine'; // Default
-    
-    for (const wood of woodTypes) {
-      if (lower.includes(wood)) {
-        selectedWood = wood;
-        break;
-      }
-    }
-    
-    // Get properties from knowledge graph
-    const props = this.knowledgeGraph.materialProperties.get(selectedWood) || {
-      workability: 'moderate',
-      cost_per_board_foot: 5,
-      indoor_outdoor: 'indoor'
-    };
-    
-    // Estimate cost (simplified)
-    const boardFeet = this.estimateBoardFeet(design);
-    const costEstimate = Math.ceil(boardFeet * props.cost_per_board_foot);
-    
-    // Find alternatives
-    const alternatives = this.knowledgeGraph.suggestAlternatives(selectedWood, {
-      maxCost: props.cost_per_board_foot * 1.5,
-      environment: design.environment || 'indoor'
-    });
-    
-    return {
-      primary_material: {
-        name: selectedWood,
-        type: selectedWood.includes('plywood') || selectedWood === 'mdf' ? 'plywood' : 'solid_wood',
-        properties: props,
-        cost_estimate: costEstimate
-      },
-      alternatives: alternatives.map(alt => ({
-        name: alt.material,
-        reason: alt.reason,
-        cost_estimate: this.estimateCost(alt.material, boardFeet)
-      })),
-      compatibility: {
-        with_dimensions: true,
-        with_environment: true,
-        with_budget: true
-      }
-    };
-  }
-
-  private estimateBoardFeet(design: any): number {
-    if (design.material_requirements?.board_feet) {
-      return design.material_requirements.board_feet;
-    }
-    
-    // Simple estimate based on furniture type
-    const estimates: Record<string, number> = {
-      bookshelf: 20,
-      table: 15,
-      chair: 8,
-      nightstand: 10,
-      cabinet: 25
-    };
-    
-    return estimates[design.furniture_type] || 15;
-  }
-}
+} 

@@ -52,6 +52,9 @@ export interface User {
     // Timestamps
     created_at: Date;
     updated_at: Date;
+    
+    // Additional fields for compatibility
+    build_time?: string;
   }
   
   export interface Dimensions {
@@ -168,8 +171,11 @@ export interface User {
   export interface AgentResponse {
     success: boolean;
     data: any;
-    confidence: number;
+    confidence?: number;
     reasoning?: string;
+    suggestions?: string[];
+    validation_issues?: string[];
+    next_steps?: string[];
   }
   
   // ============= Intent & Agent Types =============

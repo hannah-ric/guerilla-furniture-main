@@ -11,7 +11,7 @@ export enum LogLevel {
 }
 
 export class Logger {
-  static isDevelopment = process.env.NODE_ENV === 'development';
+  static isDevelopment = import.meta.env.DEV;
 
   /**
    * Log agent activity
