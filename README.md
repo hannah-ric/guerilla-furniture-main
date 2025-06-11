@@ -6,10 +6,11 @@ AI-powered furniture design application that transforms natural language descrip
 
 - **Natural Language Design**: Describe furniture in plain English
 - **Multi-Agent AI System**: Specialized agents for dimensions, materials, joinery, and validation
+- **Advanced 3D Visualization**: Parametric models with exploded views and assembly animations
 - **Engineering Validation**: Real structural analysis and physics validation
 - **Knowledge Graph**: Built-in furniture engineering expertise
 - **Cost Estimation**: Material costs calculated automatically
-- **3D Preview**: Visualize designs before building
+- **Secure Backend**: API keys stored server-side for security
 
 ## 📦 Quick Start
 
@@ -18,39 +19,50 @@ AI-powered furniture design application that transforms natural language descrip
 - npm 8+
 - OpenAI API key
 
-### Installation
+### Installation & Setup
 
 ```bash
 # Clone the repository
 git clone https://github.com/hannah-ric/guerilla-furniture.git
 cd guerilla-furniture
 
-# Set up environment (includes dependency installation)
-npm run setup
+# Install dependencies
+npm install
 
-# Add your OpenAI API key
-export VITE_OPENAI_API_KEY=sk-your-api-key
-# Or add to .env.local file
+# Set up the backend
+cd backend
+npm install
+cp env.example .env
+# Edit backend/.env and add your OpenAI API key: OPENAI_API_KEY=sk-your-key
 
-# Start development server
+# Return to root directory
+cd ..
+```
+
+### Running the Application
+
+You need to run both the backend and frontend:
+
+**Terminal 1 - Backend:**
+```bash
+cd backend
+npm start
+# Backend will run on http://localhost:3001
+```
+
+**Terminal 2 - Frontend:**
+```bash
 npm run dev
+# Frontend will run on http://localhost:3000
 ```
 
 Visit http://localhost:3000 to start designing!
 
-### For Codex Environments
-
-The setup automatically detects and configures for Codex:
+### Alternative: Run Both with One Command
 
 ```bash
-# Set API key as Codex secret
-VITE_OPENAI_API_KEY=sk-your-api-key
-
-# Run setup
-bash scripts/setup.sh
-
-# Start development
-npm run dev
+# From root directory
+npm run start:all
 ```
 
 ## 🏗️ Architecture
@@ -108,16 +120,40 @@ VITE_SUPABASE_URL=your_supabase_url  # Optional
 VITE_SUPABASE_ANON_KEY=your_key      # Optional
 ```
 
-## 🚦 Current Status
+## �� Current Status
 
-**MVP Stage** - Core functionality implemented:
-- ✅ Intent classification system
-- ✅ Agent coordination
-- ✅ Basic UI with 3D preview
-- ✅ Knowledge graph with engineering data
-- ⏳ 3D model generation (placeholder)
-- ⏳ PDF export
-- ⏳ User authentication
+**Production Ready** with advanced features:
+- ✅ Multi-agent AI system with 5 specialized agents
+- ✅ Advanced 3D visualization with parametric models
+- ✅ Secure backend API for OpenAI calls
+- ✅ Real engineering validation
+- ✅ Cost tracking and session management
+- ⏳ User authentication (coming soon)
+
+## 🔧 Troubleshooting
+
+### Check Setup
+Run this command to verify your setup:
+```bash
+npm run check-setup
+```
+
+### Common Issues
+
+**Backend not running:**
+- Make sure you have two terminals open
+- Backend must be started before frontend
+- Check that backend/.env has your OpenAI API key
+
+**Dependencies missing:**
+```bash
+npm run install:all
+```
+
+**Port conflicts:**
+- Frontend runs on port 3000
+- Backend runs on port 3001
+- Make sure these ports are available
 
 ## 🤝 Contributing
 

@@ -92,11 +92,32 @@ export function Designer() {
     sendMessage, 
     validationResults,
     error,
-    suggestions
+    suggestions,
+    designProgress
   } = useFurnitureDesign();
   
   const [isExporting, setIsExporting] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState('3d');
+  const [backendHealthy, setBackendHealthy] = React.useState<boolean | null>(null);
+  
+  // Check backend health on mount
+  React.useEffect(() => {
+    const checkBackend = async () => {
+      const { openAIService } = await import('@/services/api/openai');
+      const healthy = await openAIService.checkBackendHealth();
+      setBackendHealthy(healthy);
+      
+      if (!healthy) {
+        toast({
+          title: 'Backend Not Running',
+          description: 'Please start the backend server. Run "npm run backend" in a separate terminal.',
+          variant: 'destructive'
+        });
+      }
+    };
+    
+    checkBackend();
+  }, [toast]);
   
   // Memoize expensive calculations
   const canExport = useMemo(() => {
@@ -206,6 +227,23 @@ export function Designer() {
         onDownload={handleDownload}
       />
       
+      {/* Backend warning banner */}
+      {backendHealthy === false && (
+        <div className="bg-destructive/10 border border-destructive/20 px-4 py-2 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 text-destructive" />
+            <span className="text-sm">Backend server is not running. AI features won't work.</span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => window.location.reload()}
+          >
+            Retry
+          </Button>
+        </div>
+      )}
+      
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Chat Section */}
@@ -215,6 +253,7 @@ export function Designer() {
             onSendMessage={sendMessage}
             isLoading={isLoading}
             suggestions={suggestions.length > 0 ? suggestions : defaultSuggestions}
+            designProgress={designProgress}
           />
         </div>
         

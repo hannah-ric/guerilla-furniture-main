@@ -1,11 +1,13 @@
-import React, { Suspense, useEffect, useState, useMemo, useRef } from 'react';
-import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Grid, Environment, PresentationControls, Html } from '@react-three/drei';
+import React, { Suspense, useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { Canvas, useFrame } from '@react-three/fiber';
+import { OrbitControls, Grid, Environment, PresentationControls, Html, PerspectiveCamera } from '@react-three/drei';
 import { FurnitureDesign } from '@/lib/types';
 import { ModelGenerator } from '@/services/3d/modelGenerator';
 import * as THREE from 'three';
 import { useIntersectionObserver, useThrottle } from '@/lib/performance';
 import { DIMENSIONS } from '@/lib/constants';
+import { Button } from '@/components/ui/button';
+import { Eye, Package, Play, Pause, RotateCw } from 'lucide-react';
 
 interface Props {
   design: FurnitureDesign | null;
@@ -13,9 +15,60 @@ interface Props {
   enableAnimation?: boolean;
 }
 
-// Memoized furniture model component
-const FurnitureModel = React.memo(({ design }: { design: FurnitureDesign }) => {
+// View modes for the 3D viewer
+type ViewMode = 'assembled' | 'exploded' | 'animation';
+
+// Animated model component
+const AnimatedModel = React.memo(({ 
+  model, 
+  isPlaying 
+}: { 
+  model: THREE.Group; 
+  isPlaying: boolean 
+}) => {
+  const mixerRef = useRef<THREE.AnimationMixer | null>(null);
+  const clockRef = useRef(new THREE.Clock());
+  
+  useEffect(() => {
+    if (model.userData.animations && model.userData.animations.length > 0) {
+      mixerRef.current = new THREE.AnimationMixer(model);
+      const action = mixerRef.current.clipAction(model.userData.animations[0]);
+      
+      if (isPlaying) {
+        action.play();
+      } else {
+        action.stop();
+      }
+      
+      return () => {
+        action.stop();
+      };
+    }
+  }, [model, isPlaying]);
+  
+  useFrame(() => {
+    if (mixerRef.current && isPlaying) {
+      mixerRef.current.update(clockRef.current.getDelta());
+    }
+  });
+  
+  return <primitive object={model} />;
+});
+
+AnimatedModel.displayName = 'AnimatedModel';
+
+// Furniture model component with view mode support
+const FurnitureModel = React.memo(({ 
+  design, 
+  viewMode,
+  onModelLoad 
+}: { 
+  design: FurnitureDesign;
+  viewMode: ViewMode;
+  onModelLoad: (model: THREE.Group) => void;
+}) => {
   const [model, setModel] = useState<THREE.Group | null>(null);
+  const [currentView, setCurrentView] = useState<THREE.Group | null>(null);
   const generator = useMemo(() => new ModelGenerator(), []);
   
   useEffect(() => {
@@ -24,17 +77,40 @@ const FurnitureModel = React.memo(({ design }: { design: FurnitureDesign }) => {
     generator.generateModel(design).then(generatedModel => {
       if (!cancelled) {
         setModel(generatedModel);
+        onModelLoad(generatedModel);
       }
     });
     
     return () => {
       cancelled = true;
     };
-  }, [design, generator]);
+  }, [design, generator, onModelLoad]);
   
-  if (!model) return null;
+  useEffect(() => {
+    if (!model) return;
+    
+    switch (viewMode) {
+      case 'assembled':
+        setCurrentView(model);
+        break;
+      case 'exploded':
+        if (model.userData.explodedModel) {
+          setCurrentView(model.userData.explodedModel);
+        }
+        break;
+      case 'animation':
+        setCurrentView(model);
+        break;
+    }
+  }, [model, viewMode]);
   
-  return <primitive object={model} />;
+  if (!currentView) return null;
+  
+  if (viewMode === 'animation' && model?.userData.animations) {
+    return <AnimatedModel model={currentView} isPlaying={true} />;
+  }
+  
+  return <primitive object={currentView} />;
 });
 
 FurnitureModel.displayName = 'FurnitureModel';
@@ -85,17 +161,17 @@ const DimensionLabels = React.memo(({ dimensions }: { dimensions: any }) => {
   return (
     <group>
       <Html position={[dimensions.width * scale / 2 + 0.5, 0, 0]}>
-        <div className="text-xs bg-background/80 px-1 rounded">
+        <div className="text-xs bg-background/80 px-1 rounded whitespace-nowrap">
           {dimensions.width}"
         </div>
       </Html>
       <Html position={[0, dimensions.height * scale / 2 + 0.5, 0]}>
-        <div className="text-xs bg-background/80 px-1 rounded">
+        <div className="text-xs bg-background/80 px-1 rounded whitespace-nowrap">
           {dimensions.height}"
         </div>
       </Html>
       <Html position={[0, 0, dimensions.depth * scale / 2 + 0.5]}>
-        <div className="text-xs bg-background/80 px-1 rounded">
+        <div className="text-xs bg-background/80 px-1 rounded whitespace-nowrap">
           {dimensions.depth}"
         </div>
       </Html>
@@ -105,10 +181,60 @@ const DimensionLabels = React.memo(({ dimensions }: { dimensions: any }) => {
 
 DimensionLabels.displayName = 'DimensionLabels';
 
+// View controls component
+const ViewControls = React.memo(({ 
+  viewMode, 
+  onViewModeChange,
+  hasExploded,
+  hasAnimation 
+}: { 
+  viewMode: ViewMode;
+  onViewModeChange: (mode: ViewMode) => void;
+  hasExploded: boolean;
+  hasAnimation: boolean;
+}) => {
+  return (
+    <div className="absolute top-4 left-4 flex gap-2 bg-background/80 backdrop-blur-sm rounded-lg p-2">
+      <Button
+        size="sm"
+        variant={viewMode === 'assembled' ? 'default' : 'outline'}
+        onClick={() => onViewModeChange('assembled')}
+      >
+        <Package className="h-4 w-4 mr-1" />
+        Assembled
+      </Button>
+      {hasExploded && (
+        <Button
+          size="sm"
+          variant={viewMode === 'exploded' ? 'default' : 'outline'}
+          onClick={() => onViewModeChange('exploded')}
+        >
+          <Eye className="h-4 w-4 mr-1" />
+          Exploded
+        </Button>
+      )}
+      {hasAnimation && (
+        <Button
+          size="sm"
+          variant={viewMode === 'animation' ? 'default' : 'outline'}
+          onClick={() => onViewModeChange('animation')}
+        >
+          <Play className="h-4 w-4 mr-1" />
+          Assembly
+        </Button>
+      )}
+    </div>
+  );
+});
+
+ViewControls.displayName = 'ViewControls';
+
 export function FurnitureViewer({ design, showDimensions, enableAnimation }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const isVisible = useIntersectionObserver(containerRef, { threshold: 0.1 });
   const [hasBeenVisible, setHasBeenVisible] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('assembled');
+  const [loadedModel, setLoadedModel] = useState<THREE.Group | null>(null);
 
   // Track if component has ever been visible
   useEffect(() => {
@@ -117,10 +243,18 @@ export function FurnitureViewer({ design, showDimensions, enableAnimation }: Pro
     }
   }, [isVisible, hasBeenVisible]);
 
-  // Calculate camera position based on furniture dimensions
+  // Calculate camera position based on furniture dimensions or model bounds
   const cameraConfig = useMemo(() => {
+    if (loadedModel?.userData.cameraSettings) {
+      return loadedModel.userData.cameraSettings;
+    }
+    
     if (!design?.dimensions) {
-      return { position: [5, 5, 5] as [number, number, number], fov: 50 };
+      return { 
+        position: [5, 5, 5] as [number, number, number], 
+        target: [0, 0, 0] as [number, number, number],
+        fov: 50 
+      };
     }
 
     const maxDimension = Math.max(
@@ -133,29 +267,43 @@ export function FurnitureViewer({ design, showDimensions, enableAnimation }: Pro
     
     return {
       position: [distance, distance, distance] as [number, number, number],
+      target: [0, maxDimension / 2, 0] as [number, number, number],
       fov: 50
     };
-  }, [design?.dimensions]);
+  }, [design?.dimensions, loadedModel]);
 
   // Throttle orbit controls updates
   const handleOrbitChange = useThrottle(() => {
     // Handle orbit control changes if needed
   }, 100);
 
+  // Handle model load
+  const handleModelLoad = useCallback((model: THREE.Group) => {
+    setLoadedModel(model);
+  }, []);
+
+  // Check available view modes
+  const hasExploded = !!loadedModel?.userData.explodedModel;
+  const hasAnimation = !!loadedModel?.userData.animations?.length;
+
   if (!design?.dimensions) {
     return <EmptyState />;
   }
 
   return (
-    <div ref={containerRef} className="h-full w-full bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-lg overflow-hidden">
+    <div ref={containerRef} className="h-full w-full bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-lg overflow-hidden relative">
+      {/* View controls */}
+      {hasBeenVisible && (hasExploded || hasAnimation) && (
+        <ViewControls
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          hasExploded={hasExploded}
+          hasAnimation={hasAnimation}
+        />
+      )}
+      
       {hasBeenVisible && (
         <Canvas 
-          camera={{ 
-            position: cameraConfig.position,
-            fov: cameraConfig.fov,
-            near: 0.1,
-            far: 1000
-          }}
           shadows
           gl={{ 
             antialias: true,
@@ -164,6 +312,15 @@ export function FurnitureViewer({ design, showDimensions, enableAnimation }: Pro
           }}
           dpr={[1, 2]} // Limit pixel ratio for performance
         >
+          {/* Camera */}
+          <PerspectiveCamera
+            makeDefault
+            position={cameraConfig.position}
+            fov={cameraConfig.fov}
+            near={0.1}
+            far={1000}
+          />
+          
           <Suspense fallback={<LoadingBox />}>
             {/* Lighting */}
             <ambientLight intensity={0.5} />
@@ -197,37 +354,27 @@ export function FurnitureViewer({ design, showDimensions, enableAnimation }: Pro
             />
             
             {/* Furniture Model */}
-            <FurnitureModel design={design} />
+            <FurnitureModel 
+              design={design} 
+              viewMode={viewMode}
+              onModelLoad={handleModelLoad}
+            />
             
             {/* Dimension labels */}
-            {showDimensions && (
+            {showDimensions && viewMode === 'assembled' && (
               <DimensionLabels dimensions={design.dimensions} />
             )}
             
             {/* Controls */}
-            {enableAnimation ? (
-              <PresentationControls
-                global
-                zoom={0.8}
-                rotation={[0, -Math.PI / 4, 0]}
-                polar={[-Math.PI / 2, Math.PI / 2]}
-                azimuth={[-Math.PI / 2, Math.PI / 2]}
-              >
-                <OrbitControls 
-                  enablePan={false}
-                  onChange={handleOrbitChange}
-                />
-              </PresentationControls>
-            ) : (
-              <OrbitControls 
-                enablePan={true} 
-                enableZoom={true} 
-                enableRotate={true}
-                minDistance={cameraConfig.position[0] * 0.5}
-                maxDistance={cameraConfig.position[0] * 3}
-                onChange={handleOrbitChange}
-              />
-            )}
+            <OrbitControls 
+              enablePan={true} 
+              enableZoom={true} 
+              enableRotate={true}
+              target={cameraConfig.target}
+              minDistance={cameraConfig.position[0] * 0.5}
+              maxDistance={cameraConfig.position[0] * 3}
+              onChange={handleOrbitChange}
+            />
           </Suspense>
         </Canvas>
       )}
@@ -243,7 +390,24 @@ export function FurnitureViewer({ design, showDimensions, enableAnimation }: Pro
             {design.materials[0].type}
           </div>
         )}
+        {loadedModel?.userData.parts && (
+          <div className="text-xs text-muted-foreground">
+            {loadedModel.userData.parts.length} parts
+          </div>
+        )}
       </div>
+      
+      {/* Parts list (when in exploded view) */}
+      {viewMode === 'exploded' && loadedModel?.userData.parts && (
+        <div className="absolute bottom-4 right-4 bg-background/80 backdrop-blur-sm rounded-lg p-3 text-xs max-w-xs max-h-48 overflow-y-auto">
+          <div className="font-semibold mb-2">Parts List:</div>
+          {loadedModel.userData.parts.map((part: any, index: number) => (
+            <div key={part.id} className="py-0.5">
+              {index + 1}. {part.name}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

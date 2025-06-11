@@ -14,6 +14,7 @@ interface UseFurnitureDesignReturn {
   validationResults: Map<string, ValidationResult>;
   error: Error | null;
   suggestions: string[];
+  designProgress: number;
 }
 
 const logger = Logger.createScoped('useFurnitureDesign');
@@ -21,7 +22,7 @@ const logger = Logger.createScoped('useFurnitureDesign');
 const INITIAL_MESSAGE: Message = {
   id: '1',
   role: 'assistant',
-  content: "Hi! I'm Blueprint Buddy. I can help you design custom furniture with my team of AI specialists. Tell me what you'd like to build!",
+  content: "Hi! I'm Blueprint Buddy. I can help you design custom furniture with my team of AI specialists. Tell me what you'd like to build! 🛠️",
   timestamp: new Date()
 };
 
@@ -30,7 +31,12 @@ export function useFurnitureDesign(): UseFurnitureDesignReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [validationResults, setValidationResults] = useState<Map<string, ValidationResult>>(new Map());
   const [error, setError] = useState<Error | null>(null);
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestions, setSuggestions] = useState<string[]>([
+    "I want to build a bookshelf",
+    "Help me design a coffee table",
+    "I need a desk for my home office"
+  ]);
+  const [designProgress, setDesignProgress] = useState(0);
   
   // Use ref to prevent re-initialization
   const isInitialized = useRef(false);
@@ -73,6 +79,7 @@ export function useFurnitureDesign(): UseFurnitureDesignReturn {
       
       setMessages(prev => [...prev, assistantMessage]);
       setSuggestions(result.suggestions || []);
+      setDesignProgress(result.designProgress || 0);
       
       // Update validation results if available
       if (result.validationResults) {
@@ -89,7 +96,7 @@ export function useFurnitureDesign(): UseFurnitureDesignReturn {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content: error instanceof Error && error.message.includes('API key') 
-          ? "Please configure your OpenAI API key to use Blueprint Buddy."
+          ? "Please configure your OpenAI API key to use Blueprint Buddy. You can set it as an environment variable: VITE_OPENAI_API_KEY=sk-your-key"
           : "I apologize, but I encountered an error processing your request. Please try again.",
         timestamp: new Date()
       };
@@ -131,8 +138,13 @@ export function useFurnitureDesign(): UseFurnitureDesignReturn {
     try {
       setMessages([INITIAL_MESSAGE]);
       setValidationResults(new Map());
-      setSuggestions([]);
+      setSuggestions([
+        "I want to build a bookshelf",
+        "Help me design a coffee table", 
+        "I need a desk for my home office"
+      ]);
       setError(null);
+      setDesignProgress(0);
       messageQueue.current = [];
       processingRef.current = false;
       
@@ -159,6 +171,7 @@ export function useFurnitureDesign(): UseFurnitureDesignReturn {
     reset,
     validationResults,
     error,
-    suggestions
+    suggestions,
+    designProgress
   };
 }

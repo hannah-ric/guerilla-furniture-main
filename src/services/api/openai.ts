@@ -1,4 +1,3 @@
-import OpenAI from 'openai';
 import { z } from 'zod';
 import { config } from '@/lib/config';
 import { Logger } from '@/lib/logger';
@@ -60,181 +59,57 @@ export interface LLMResponse<T = any> {
   duration: number;
 }
 
-class RateLimiter {
-  private requests: number[] = [];
-  private readonly maxRequests: number;
-  private readonly windowMs: number;
-
-  constructor(maxRequests = 10, windowMs = 60000) {
-    this.maxRequests = maxRequests;
-    this.windowMs = windowMs;
-  }
-
-  async checkLimit(): Promise<boolean> {
-    const now = Date.now();
-    this.requests = this.requests.filter(time => now - time < this.windowMs);
-    
-    if (this.requests.length >= this.maxRequests) {
-      const oldestRequest = this.requests[0];
-      const waitTime = this.windowMs - (now - oldestRequest);
-      throw new Error(`Rate limit exceeded. Please wait ${Math.ceil(waitTime / 1000)} seconds.`);
-    }
-    
-    this.requests.push(now);
-    return true;
-  }
-}
-
 export class OpenAIService {
-  private client: OpenAI;
-  private totalCost = 0;
-  private requestCount = 0;
   private logger = Logger.createScoped('OpenAIService');
-  private rateLimiter = new RateLimiter(20, 60000); // 20 requests per minute
-  private sessionCost = 0;
-
-  // Cost tracking (per 1K tokens)
-  private readonly costs = {
-    'gpt-4': { input: 0.03, output: 0.06 },
-    'gpt-4-turbo': { input: 0.01, output: 0.03 },
-    'gpt-3.5-turbo': { input: 0.0015, output: 0.002 }
-  };
+  private sessionId: string;
+  private backendUrl: string;
 
   constructor() {
-    const apiKey = config.api.openai.key;
+    this.sessionId = this.generateSessionId();
+    this.backendUrl = config.api.backend.url;
     
-    if (!apiKey) {
-      throw new Error(
-        'OpenAI API key not found. Please set VITE_OPENAI_API_KEY environment variable.'
-      );
-    }
-
-    /**
-     * Security Note: Using dangerouslyAllowBrowser is only acceptable for MVP/prototype.
-     * In production, all OpenAI API calls should be proxied through a backend service to:
-     * 1. Keep the API key secure on the server
-     * 2. Implement rate limiting and usage controls
-     * 3. Add request validation and sanitization
-     * 4. Enable proper authentication and authorization
-     * 
-     * TODO: Move to backend API proxy before production deployment
-     */
-    this.client = new OpenAI({
-      apiKey,
-      dangerouslyAllowBrowser: true // ONLY FOR MVP - See security note above
-    });
-
     this.logger.info('OpenAI service initialized', { 
-      model: config.api.openai.model 
+      model: config.api.openai.model,
+      backend: this.backendUrl
     });
+  }
+
+  private generateSessionId(): string {
+    return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
 
   /**
-   * Generate furniture design from natural language description
+   * Make a request to the backend API
    */
-  async generateFurnitureDesign(request: FurnitureDesignRequest): Promise<LLMResponse<FurnitureDesignResponse>> {
-    return PerformanceMonitor.measureAsync('generateFurnitureDesign', async () => {
-      await this.checkCostLimit();
-      await this.rateLimiter.checkLimit();
+  private async makeBackendRequest(endpoint: string, data: any): Promise<any> {
+    try {
+      const response = await fetch(`${this.backendUrl}${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Session-ID': this.sessionId
+        },
+        body: JSON.stringify(data)
+      });
 
-      const prompt = this.buildDesignPrompt(request);
-
-      try {
-        const response = await this.retryWithBackoff(async () => {
-          return await this.client.chat.completions.create({
-            model: config.api.openai.model,
-            messages: [
-              {
-                role: 'system',
-                content: 'You are an expert furniture designer and woodworker. Create detailed, buildable furniture designs based on user descriptions. Focus on practical, safe designs suitable for DIY builders.'
-              },
-              {
-                role: 'user',
-                content: prompt
-              }
-            ],
-            functions: [{
-              name: 'create_furniture_design',
-              description: 'Create a detailed furniture design',
-              parameters: {
-                type: 'object',
-                properties: {
-                  name: { type: 'string', description: 'Name of the furniture piece' },
-                  description: { type: 'string', description: 'Detailed description' },
-                  furniture_type: { 
-                    type: 'string', 
-                    enum: ['table', 'chair', 'bookshelf', 'cabinet', 'desk', 'bed', 'nightstand', 'dresser', 'bench', 'shelf'] 
-                  },
-                  dimensions: {
-                    type: 'object',
-                    properties: {
-                      width: { type: 'number', description: 'Width in inches' },
-                      height: { type: 'number', description: 'Height in inches' },
-                      depth: { type: 'number', description: 'Depth in inches' },
-                      unit: { type: 'string', enum: ['inches'] }
-                    },
-                    required: ['width', 'height', 'depth', 'unit']
-                  },
-                  materials: {
-                    type: 'array',
-                    items: { type: 'string' },
-                    description: 'List of materials needed'
-                  },
-                  estimated_cost: { type: 'number', description: 'Estimated cost in USD' },
-                  difficulty_level: { type: 'string', enum: ['beginner', 'intermediate', 'advanced'] },
-                  build_time: { type: 'string', description: 'Estimated build time' },
-                  features: {
-                    type: 'array',
-                    items: { type: 'string' },
-                    description: 'Key features of the design'
-                  }
-                },
-                required: ['name', 'description', 'furniture_type', 'dimensions', 'materials', 'estimated_cost', 'difficulty_level', 'build_time', 'features']
-              }
-            }],
-            function_call: { name: 'create_furniture_design' },
-            temperature: config.api.openai.temperature,
-            max_tokens: Math.min(config.api.openai.maxTokens, API.TOKEN_LIMITS.OUTPUT)
-          });
-        });
-
-        const usage = response.usage!;
-        const cost = this.calculateCost(config.api.openai.model, usage.prompt_tokens, usage.completion_tokens);
-
-        this.updateCostTracking(cost);
-
-        const functionCall = response.choices[0].message.function_call;
-        if (!functionCall || !functionCall.arguments) {
-          throw new Error('No function call response received');
-        }
-
-        const designData = JSON.parse(functionCall.arguments);
-        
-        // Validate with Zod
-        const validatedData = FurnitureDesignSchema.parse(designData);
-
-        this.logger.info('Design generated', {
-          type: validatedData.furniture_type,
-          cost,
-          duration: 0 // Will be set by PerformanceMonitor
-        });
-
-        return {
-          data: validatedData as FurnitureDesignResponse,
-          usage: {
-            promptTokens: usage.prompt_tokens,
-            completionTokens: usage.completion_tokens,
-            totalTokens: usage.total_tokens,
-            estimatedCost: cost
-          },
-          duration: 0 // Will be set by PerformanceMonitor
-        };
-
-      } catch (error) {
-        this.logger.error('Failed to generate furniture design', error);
-        throw new Error(`Failed to generate furniture design: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || `Backend request failed: ${response.statusText}`);
       }
-    });
+
+      return await response.json();
+    } catch (error) {
+      this.logger.error('Backend request failed', error);
+      
+      // Fallback message if backend is not available
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new Error(
+          'Cannot connect to backend server. Please ensure the backend is running on ' + this.backendUrl
+        );
+      }
+      
+      throw error;
+    }
   }
 
   /**
@@ -242,53 +117,26 @@ export class OpenAIService {
    */
   async generateResponse(userMessage: string, context?: string): Promise<string> {
     return PerformanceMonitor.measureAsync('generateResponse', async () => {
-      await this.checkCostLimit();
-      await this.rateLimiter.checkLimit();
-
       try {
-        const messages: OpenAI.ChatCompletionMessageParam[] = [
-          {
-            role: 'system',
-            content: 'You are Blueprint Buddy, a helpful AI assistant for furniture design. Help users create buildable furniture plans.'
-          }
-        ];
-
-        if (context) {
-          messages.push({
-            role: 'system',
-            content: `Current design context: ${context}`
-          });
-        }
-
-        // Trim message if too long
-        const trimmedMessage = userMessage.length > API.TOKEN_LIMITS.INPUT 
-          ? userMessage.substring(0, API.TOKEN_LIMITS.INPUT) + '...'
-          : userMessage;
-
-        messages.push({
-          role: 'user',
-          content: trimmedMessage
+        const response = await this.makeBackendRequest('/api/chat', {
+          message: userMessage,
+          context,
+          systemPrompt: 'You are Blueprint Buddy, a helpful AI assistant for furniture design. Help users create buildable furniture plans.'
         });
 
-        const response = await this.retryWithBackoff(async () => {
-          return await this.client.chat.completions.create({
-            model: config.api.openai.model,
-            messages,
-            temperature: config.api.openai.temperature,
-            max_tokens: Math.min(config.api.openai.maxTokens, API.TOKEN_LIMITS.OUTPUT)
-          });
+        this.logger.debug('Response generated', { 
+          cost: response.usage?.cost, 
+          tokens: response.usage?.totalTokens 
         });
 
-        const usage = response.usage!;
-        const cost = this.calculateCost(config.api.openai.model, usage.prompt_tokens, usage.completion_tokens);
-        this.updateCostTracking(cost);
-
-        this.logger.debug('Response generated', { cost, tokens: usage.total_tokens });
-
-        return response.choices[0].message.content || 'I apologize, but I could not generate a response.';
+        return response.response || 'I apologize, but I could not generate a response.';
 
       } catch (error) {
         this.logger.error('Failed to generate response', error);
+        
+        if (error instanceof Error && error.message.includes('backend')) {
+          return 'I need the backend server to be running to process your request. Please start the backend server and try again.';
+        }
         
         if (error instanceof Error && error.message.includes('Rate limit')) {
           return 'I\'m receiving too many requests. Please wait a moment and try again.';
@@ -300,50 +148,67 @@ export class OpenAIService {
   }
 
   /**
-   * Retry with exponential backoff
+   * Agent-specific request with structured output
    */
-  private async retryWithBackoff<T>(
-    fn: () => Promise<T>,
-    maxRetries = API.MAX_RETRIES
-  ): Promise<T> {
-    let lastError: Error;
-    
-    for (let i = 0; i < maxRetries; i++) {
+  async generateAgentResponse(agentName: string, prompt: string): Promise<any> {
+    return PerformanceMonitor.measureAsync('generateAgentResponse', async () => {
       try {
-        return await fn();
+        const response = await this.makeBackendRequest(`/api/agent/${agentName}`, {
+          prompt
+        });
+
+        this.logger.debug('Agent response generated', { 
+          agent: agentName,
+          usage: response.usage
+        });
+
+        return response.data;
+
       } catch (error) {
-        lastError = error as Error;
-        
-        if (i === maxRetries - 1) {
-          throw error;
-        }
-        
-        const delay = API.RETRY_DELAY * Math.pow(2, i);
-        this.logger.warn(`Retry ${i + 1}/${maxRetries} after ${delay}ms`, error);
-        
-        await new Promise(resolve => setTimeout(resolve, delay));
+        this.logger.error('Failed to generate agent response', error);
+        throw error;
       }
-    }
-    
-    throw lastError!;
+    });
   }
 
   /**
-   * Check cost limit
+   * Generate furniture design from natural language description
+   * (Keeping for backward compatibility, but using backend)
    */
-  private async checkCostLimit(): Promise<void> {
-    if (this.sessionCost >= API.COST_LIMIT_PER_SESSION) {
-      throw new Error(`Session cost limit of $${API.COST_LIMIT_PER_SESSION} exceeded. Please start a new session.`);
-    }
-  }
+  async generateFurnitureDesign(request: FurnitureDesignRequest): Promise<LLMResponse<FurnitureDesignResponse>> {
+    return PerformanceMonitor.measureAsync('generateFurnitureDesign', async () => {
+      const prompt = this.buildDesignPrompt(request);
 
-  /**
-   * Update cost tracking
-   */
-  private updateCostTracking(cost: number): void {
-    this.totalCost += cost;
-    this.sessionCost += cost;
-    this.requestCount++;
+      try {
+        const response = await this.makeBackendRequest('/api/agent/designer', {
+          prompt,
+          schema: FurnitureDesignSchema
+        });
+
+        // Validate with Zod
+        const validatedData = FurnitureDesignSchema.parse(response.data);
+
+        this.logger.info('Design generated', {
+          type: validatedData.furniture_type,
+          cost: response.usage?.cost
+        });
+
+        return {
+          data: validatedData as FurnitureDesignResponse,
+          usage: {
+            promptTokens: response.usage?.promptTokens || 0,
+            completionTokens: response.usage?.completionTokens || 0,
+            totalTokens: response.usage?.totalTokens || 0,
+            estimatedCost: response.usage?.cost || 0
+          },
+          duration: 0 // Will be set by PerformanceMonitor
+        };
+
+      } catch (error) {
+        this.logger.error('Failed to generate furniture design', error);
+        throw new Error(`Failed to generate furniture design: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    });
   }
 
   /**
@@ -383,41 +248,55 @@ Please create a complete furniture design with all required details.`;
   }
 
   /**
-   * Calculate API cost
-   */
-  private calculateCost(model: string, inputTokens: number, outputTokens: number): number {
-    const modelCost = this.costs[model as keyof typeof this.costs] || this.costs['gpt-3.5-turbo'];
-    return (inputTokens / 1000) * modelCost.input + (outputTokens / 1000) * modelCost.output;
-  }
-
-  /**
    * Get usage statistics
    */
-  getUsageStats() {
+  async getUsageStats() {
+    try {
+      const response = await fetch(`${this.backendUrl}/api/session/stats`, {
+        headers: {
+          'X-Session-ID': this.sessionId
+        }
+      });
+
+      if (response.ok) {
+        return await response.json();
+      }
+    } catch (error) {
+      this.logger.error('Failed to get usage stats', error);
+    }
+
     return {
-      totalCost: this.totalCost,
-      sessionCost: this.sessionCost,
-      requestCount: this.requestCount,
-      averageCostPerRequest: this.requestCount > 0 ? this.totalCost / this.requestCount : 0
+      totalCost: 0,
+      sessionCost: 0,
+      requestCount: 0,
+      averageCostPerRequest: 0
     };
   }
 
   /**
-   * Reset session usage
+   * Reset session
    */
-  resetSession() {
-    this.sessionCost = 0;
-    this.logger.info('Session cost reset');
+  async resetSession() {
+    try {
+      await this.makeBackendRequest('/api/session/reset', {});
+      this.sessionId = this.generateSessionId();
+      this.logger.info('Session reset');
+    } catch (error) {
+      this.logger.error('Failed to reset session', error);
+    }
   }
 
   /**
-   * Reset all usage
+   * Check if backend is healthy
    */
-  resetUsage() {
-    this.totalCost = 0;
-    this.sessionCost = 0;
-    this.requestCount = 0;
-    this.logger.info('Usage stats reset');
+  async checkBackendHealth(): Promise<boolean> {
+    try {
+      const response = await fetch(`${this.backendUrl}/health`);
+      return response.ok;
+    } catch (error) {
+      this.logger.error('Backend health check failed', error);
+      return false;
+    }
   }
 }
 

@@ -12,6 +12,9 @@ export const config = {
       maxTokens: 1000,
       temperature: 0.7,
     },
+    backend: {
+      url: import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001',
+    },
     supabase: {
       url: import.meta.env.VITE_SUPABASE_URL || '',
       anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || '',
@@ -32,8 +35,9 @@ export const config = {
     supabaseIntegration: !!import.meta.env.VITE_SUPABASE_URL,
     advancedValidation: true,
     costEstimation: true,
-    pdfExport: false, // Coming soon
+    pdfExport: true,
     userAuthentication: false, // Coming soon
+    backend: true, // Use backend API for OpenAI calls
   },
 
   // Design Constraints
@@ -72,8 +76,12 @@ export const config = {
 export function validateConfig(): { isValid: boolean; errors: string[] } {
   const errors: string[] = [];
 
-  if (!config.api.openai.key) {
-    errors.push('OpenAI API key is not configured (VITE_OPENAI_API_KEY)');
+  if (config.features.backend && !config.api.backend.url) {
+    errors.push('Backend URL is not configured (VITE_BACKEND_URL)');
+  }
+
+  if (!config.features.backend && !config.api.openai.key) {
+    errors.push('OpenAI API key is not configured (VITE_OPENAI_API_KEY) - required when not using backend');
   }
 
   if (config.features.supabaseIntegration && (!config.api.supabase.url || !config.api.supabase.anonKey)) {

@@ -76,10 +76,6 @@ done
 log "Updating package-lock.json..."
 npm install --package-lock-only --no-audit --no-fund
 
-# Analyze bundle size
-log "Analyzing bundle size..."
-npm run build -- --report
-
 # Clean dist folder
 log "Cleaning dist folder..."
 rm -rf dist
