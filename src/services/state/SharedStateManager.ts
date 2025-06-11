@@ -50,6 +50,7 @@ export class SharedStateManager extends EventEmitter {
   private history: StateSnapshot[] = [];
   private subscribers: Map<string, Set<(state: any, changes: any) => void>>;
   private pendingChanges: StateChange[] = [];
+  private batchUpdateTimer?: NodeJS.Timeout;
   
   // Configuration
   private readonly MAX_HISTORY_SIZE = 100;
@@ -91,7 +92,8 @@ export class SharedStateManager extends EventEmitter {
       validation_results: new Map(),
       agent_decisions: new Map(),
       locked_properties: new Set(),
-      history: []
+      history: [],
+      lastUpdated: new Date()
     };
   }
 
@@ -248,7 +250,7 @@ export class SharedStateManager extends EventEmitter {
     this.state = this.deepClone(snapshot.state);
     
     // Notify all subscribers
-    this.notifySubscribers([{
+    this.notifySubscribers('system', [{
       agent: 'system',
       timestamp: new Date(),
       previous_value: null,
@@ -281,7 +283,7 @@ export class SharedStateManager extends EventEmitter {
       this.saveSnapshot();
       
       // Notify subscribers
-      this.notifySubscribers([{
+      this.notifySubscribers('system', [{
         agent: 'system',
         timestamp: new Date(),
         previous_value: null,
@@ -307,8 +309,8 @@ export class SharedStateManager extends EventEmitter {
     agentName: string,
     changes: StateChange[]
   ): void {
-    if (!this.state.design.constraints) {
-      this.state.design.constraints = {
+    if (!this.state.constraints) {
+      this.state.constraints = {
         dimensional: {},
         material: {},
         structural: {
@@ -323,27 +325,27 @@ export class SharedStateManager extends EventEmitter {
 
     // Update each constraint category
     if (updates.dimensional) {
-      Object.assign(this.state.design.constraints.dimensional, updates.dimensional);
+      Object.assign(this.state.constraints.dimensional, updates.dimensional);
       changes.push(this.createChange(agentName, 'constraints.dimensional', updates.dimensional));
     }
     
     if (updates.material) {
-      Object.assign(this.state.design.constraints.material, updates.material);
+      Object.assign(this.state.constraints.material, updates.material);
       changes.push(this.createChange(agentName, 'constraints.material', updates.material));
     }
     
     if (updates.structural) {
-      Object.assign(this.state.design.constraints.structural, updates.structural);
+      Object.assign(this.state.constraints.structural, updates.structural);
       changes.push(this.createChange(agentName, 'constraints.structural', updates.structural));
     }
     
     if (updates.aesthetic) {
-      Object.assign(this.state.design.constraints.aesthetic, updates.aesthetic);
+      Object.assign(this.state.constraints.aesthetic, updates.aesthetic);
       changes.push(this.createChange(agentName, 'constraints.aesthetic', updates.aesthetic));
     }
     
     if (updates.budget) {
-      Object.assign(this.state.design.constraints.budget, updates.budget);
+      Object.assign(this.state.constraints.budget, updates.budget);
       changes.push(this.createChange(agentName, 'constraints.budget', updates.budget));
     }
   }
@@ -396,7 +398,7 @@ export class SharedStateManager extends EventEmitter {
     this.pendingChanges = [];
     
     // Notify subscribers
-    this.notifySubscribers(changes);
+    this.notifySubscribers('batch', changes);
     
     // Emit event
     this.emit('stateChanged', {

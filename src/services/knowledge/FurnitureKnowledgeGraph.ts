@@ -546,7 +546,7 @@ import {
         }
         
         // Strength criteria
-        if (criteria.minStrength && props.modulus_rupture < criteria.minStrength) {
+        if (criteria.minStrength && props.modulus_rupture && props.modulus_rupture < criteria.minStrength) {
           continue; // Skip if too weak
         }
         
@@ -566,7 +566,7 @@ import {
         // Bonus for better properties
         const currentProps = this.materialProperties.get(currentMaterial);
         if (currentProps) {
-          if (props.modulus_rupture > currentProps.modulus_rupture) {
+          if (props.modulus_rupture && currentProps.modulus_rupture && props.modulus_rupture > currentProps.modulus_rupture) {
             score *= 1.2;
             reasons.push('stronger');
           }
@@ -606,7 +606,7 @@ import {
         cherry: { tangential: 0.00258, radial: 0.00126 }
       };
       
-      const coefficients = movementCoefficients[species] || movementCoefficients.pine;
+      const coefficients = movementCoefficients[species as keyof typeof movementCoefficients] || movementCoefficients.pine;
       
       return {
         tangential: width * coefficients.tangential * moistureChange,

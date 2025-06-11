@@ -67,15 +67,15 @@ export interface User {
   }
   
   export interface MaterialProperties {
-    cost_per_board_foot: number;
-    workability: string;
-    durability: string;
-    indoor_outdoor?: string;
-    hardness?: number;
-    modulus_rupture?: number;
-    modulus_elasticity?: number;
-    density?: number;
-  }
+  cost_per_board_foot: number;
+  workability: 'easy' | 'moderate' | 'difficult';
+  durability: string;
+  indoor_outdoor?: 'indoor' | 'outdoor' | 'both';
+  hardness?: number;
+  modulus_rupture?: number;
+  modulus_elasticity?: number;
+  density?: number;
+}
   
   export interface JoineryMethod {
     type: string;
@@ -241,7 +241,8 @@ export interface User {
     | 'enhances'
     | 'conflicts_with'
     | 'alternative_to'
-    | 'commonly_used_with';
+    | 'commonly_used_with'
+    | 'suitable_for';
   
   export interface CompatibilityRule {
     id: string;
@@ -295,6 +296,7 @@ export interface User {
     agent_decisions: Map<string, AgentDecision>;
     locked_properties: Set<string>;
     history: StateChange[];
+    lastUpdated: Date;
   }
   
   export interface DesignConstraints {
@@ -529,6 +531,8 @@ export interface User {
       height?: number;
       width?: number;
       depth?: number;
+      thickness?: number;
+      diameter?: number;
     };
     material_requirements: {
       board_feet: number;

@@ -320,7 +320,7 @@ export class IntentClassifier {
 export interface Agent {
   name: string;
   process(input: string, context: DesignContext | any): Promise<AgentResponse>;
-  canHandle(intent: IntentType): boolean;
+  canHandle(intent: IntentType | string): boolean;
   handleMessage?: (message: AgentMessage) => Promise<any>;
   interestedEvents?: string[];
 }
@@ -357,7 +357,7 @@ export class AgentOrchestrator {
     
     // Process secondary intents in parallel
     const secondaryPromises = intentResult.secondary_intents.map(async (intent) => {
-      const agent = this.findAgentForIntent(intent as IntentType);
+      const agent = this.findAgentForIntent(intent);
       if (agent) {
         const response = await agent.process(
           input,
@@ -382,7 +382,7 @@ export class AgentOrchestrator {
     return this.generateUnifiedResponse(intentResult, agentResponses);
   }
 
-  private findAgentForIntent(intent: IntentType): Agent | undefined {
+  private findAgentForIntent(intent: string): Agent | undefined {
     for (const agent of this.agents.values()) {
       if (agent.canHandle(intent)) {
         return agent;

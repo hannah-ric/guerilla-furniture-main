@@ -4,7 +4,8 @@ import { Agent, AgentContext } from './base/Agent';
 import { 
   IntentType,
   BaseAgentResponse as AgentResponse,
-  DimensionAgentResponse 
+  DimensionAgentResponse,
+  FurnitureType 
 } from '@/lib/types';
 import { FurnitureKnowledgeGraph } from '@/services/knowledge/FurnitureKnowledgeGraph';
 import { PROMPTS, formatPrompt } from '@/lib/prompts';
@@ -303,7 +304,7 @@ export class DimensionAgent extends Agent {
   }
 
   private applyDefaultDimensions(dimensions: any, furnitureType?: string) {
-    const template = this.knowledgeGraph.getFurnitureTemplate(furnitureType || 'table');
+    const template = this.knowledgeGraph.getFurnitureTemplate((furnitureType as FurnitureType) || 'table');
     
     if (template?.standard_dimensions) {
       if (!dimensions.width && template.standard_dimensions.width) {

@@ -19,7 +19,10 @@ const MaterialSelectionSchema = z.object({
       workability: z.enum(['easy', 'moderate', 'difficult']),
       cost_per_board_foot: z.number(),
       indoor_outdoor: z.enum(['indoor', 'outdoor', 'both']),
-      hardness: z.number().optional()
+      hardness: z.number().optional(),
+      modulus_rupture: z.number().optional(),
+      modulus_elasticity: z.number().optional(),
+      density: z.number().optional()
     }),
     reasoning: z.string()
   }),
@@ -90,8 +93,7 @@ export class MaterialAgent extends Agent {
         selection.primary_material.properties = {
           cost_per_board_foot: materialProps.cost_per_board_foot,
           workability: materialProps.workability,
-          durability: materialProps.durability,
-          indoor_outdoor: materialProps.indoor_outdoor,
+          indoor_outdoor: materialProps.indoor_outdoor || 'indoor',
           hardness: materialProps.hardness,
           modulus_rupture: materialProps.modulus_rupture,
           modulus_elasticity: materialProps.modulus_elasticity,

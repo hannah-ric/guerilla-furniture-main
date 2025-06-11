@@ -26,7 +26,7 @@ export abstract class Agent {
     this.knowledgeGraph = knowledgeGraph;
   }
 
-  abstract canHandle(intent: IntentType): boolean;
+  abstract canHandle(intent: IntentType | string): boolean;
   
   abstract process(
     input: string, 
