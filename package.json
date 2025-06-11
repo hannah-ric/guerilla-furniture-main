@@ -20,6 +20,11 @@
         "backend": "cd backend && npm start",
         "backend:dev": "cd backend && npm run dev",
         "backend:install": "cd backend && npm install",
+        "mcp-server": "cd backend && npm run mcp-server",
+        "mcp-test": "cd backend && npm run mcp-test",
+        "mcp-test-advanced": "cd backend && npm run mcp-test-advanced",
+        "mcp-test-integration": "cd backend && npm run mcp-test-integration",
+        "verify-mcp": "node scripts/verify-mcp.js",
         "start:all": "node scripts/start-all.js",
         "install:all": "npm install && npm run backend:install",
         "check-setup": "node scripts/check-setup.js"

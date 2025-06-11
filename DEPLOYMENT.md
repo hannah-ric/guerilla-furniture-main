@@ -16,13 +16,18 @@
 - (Optional) Supabase account for database
 
 ### Environment Variables
-Create a `.env` file in the root directory:
 
+**Backend Configuration** (required in `backend/.env`):
 ```env
 # Required
-VITE_OPENAI_API_KEY=sk-...your-openai-key...
+OPENAI_API_KEY=sk-...your-openai-key...
+FRONTEND_URL=http://localhost:3000
+```
 
+**Frontend Configuration** (optional in `.env.local`):
+```env
 # Optional (for full features)
+VITE_BACKEND_URL=http://localhost:3001
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
 ```
@@ -50,7 +55,7 @@ npm i -g vercel
 vercel
 
 # Follow prompts, then add environment variables:
-vercel env add VITE_OPENAI_API_KEY
+vercel env add VITE_BACKEND_URL
 ```
 
 ### Deploy to Netlify (CLI)

@@ -112,23 +112,51 @@ npm run verify
 
 ## 🔧 Configuration
 
-Environment variables can be set in `.env.local`:
-
+**Backend Configuration** (required in `backend/.env`):
 ```env
-VITE_OPENAI_API_KEY=your_api_key_here
-VITE_SUPABASE_URL=your_supabase_url  # Optional
-VITE_SUPABASE_ANON_KEY=your_key      # Optional
+OPENAI_API_KEY=your_api_key_here
+FRONTEND_URL=http://localhost:3000
 ```
 
-## �� Current Status
+**Frontend Configuration** (optional in `.env.local`):
+```env
+VITE_BACKEND_URL=http://localhost:3001  # Backend URL
+VITE_SUPABASE_URL=your_supabase_url     # Optional
+VITE_SUPABASE_ANON_KEY=your_key         # Optional
+```
 
-**Production Ready** with advanced features:
-- ✅ Multi-agent AI system with 5 specialized agents
-- ✅ Advanced 3D visualization with parametric models
-- ✅ Secure backend API for OpenAI calls
-- ✅ Real engineering validation
-- ✅ Cost tracking and session management
-- ⏳ User authentication (coming soon)
+## ✨ Feature Highlights
+
+### 🤖 AI-Powered Design Assistant
+- **Natural Language Interface**: Just describe what you want to build
+- **Multi-Agent Architecture**: Specialized AI agents for dimensions, materials, joinery, and validation
+- **Smart Suggestions**: Context-aware recommendations throughout the design process
+- **Iterative Refinement**: Modify and improve your design through conversation
+
+### 📐 3D Visualization
+- **Real-time 3D Models**: See your furniture from every angle
+- **Exploded Views**: Understand how pieces fit together
+- **Assembly Animations**: Watch your furniture come together step-by-step
+- **Accurate Dimensions**: Every part sized correctly with material thickness
+
+### 🛠️ Professional Documentation
+- **Detailed Cut Lists**: Every piece with dimensions and grain direction
+- **Materials List**: Complete bill of materials with estimated costs
+- **Assembly Instructions**: Step-by-step guide with helpful tips
+- **PDF Export**: Professional plans ready for the workshop
+
+### 🌐 Material Sourcing (MCP Integration)
+- **Real-time Pricing**: Connect to Home Depot, Lowe's, and local suppliers
+- **Availability Checking**: Verify materials are in stock before you drive
+- **Tool Rental**: Find where to rent specialized tools
+- **Price Tracking**: Get notified when material prices drop
+- **Alternative Suggestions**: Find substitute materials when needed
+
+### 🔒 Privacy & Security
+- **No Account Required**: Start designing immediately
+- **Secure Backend**: API keys protected server-side
+- **Local Storage**: Your designs stay on your device
+- **Cost Controls**: Built-in limits to prevent overuse
 
 ## 🔧 Troubleshooting
 

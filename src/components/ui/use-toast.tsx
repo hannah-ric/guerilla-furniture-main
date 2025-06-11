@@ -121,45 +121,5 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   )
 }
 
-// Utility function for common toast patterns
-export const toastUtils = {
-  success: (title: string, description?: string) => {
-    const { toast } = useToast()
-    return toast({
-      title,
-      description,
-      variant: "success",
-      duration: 3000
-    })
-  },
-  
-  error: (title: string, description?: string) => {
-    const { toast } = useToast()
-    return toast({
-      title,
-      description,
-      variant: "destructive",
-      duration: 6000
-    })
-  },
-  
-  warning: (title: string, description?: string) => {
-    const { toast } = useToast()
-    return toast({
-      title,
-      description,
-      variant: "warning",
-      duration: 4000
-    })
-  },
-  
-  loading: (title: string, description?: string) => {
-    const { toast } = useToast()
-    return toast({
-      title,
-      description,
-      variant: "default",
-      duration: 0 // Don't auto-dismiss
-    })
-  }
-}
+// Note: Use useToast() hook directly in components instead of utility functions
+// to avoid React Hook rule violations

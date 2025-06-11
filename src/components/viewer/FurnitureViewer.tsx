@@ -1,13 +1,13 @@
 import React, { Suspense, useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Grid, Environment, PresentationControls, Html, PerspectiveCamera } from '@react-three/drei';
+import { OrbitControls, Grid, Environment, Html, PerspectiveCamera } from '@react-three/drei';
 import { FurnitureDesign } from '@/lib/types';
 import { ModelGenerator } from '@/services/3d/modelGenerator';
 import * as THREE from 'three';
 import { useIntersectionObserver, useThrottle } from '@/lib/performance';
 import { DIMENSIONS } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
-import { Eye, Package, Play, Pause, RotateCw } from 'lucide-react';
+import { Eye, Package, Play } from 'lucide-react';
 
 interface Props {
   design: FurnitureDesign | null;

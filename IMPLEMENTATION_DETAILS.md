@@ -168,6 +168,52 @@ PDF generation includes:
 - Material requirements
 - Professional formatting
 
+### 7. Model Context Protocol (MCP) Integration ✅
+
+Blueprint Buddy now features comprehensive MCP integration for real-world material sourcing:
+
+#### **MCP Infrastructure**
+```typescript
+// Standardized protocol for external service integration
+export class MCPClient {
+  providers: Map<string, MCPProvider>;
+  connections: Map<string, WebSocket>;
+  resourceCache: Map<string, MCPResource>;
+  subscriptions: Map<string, MCPSubscription>;
+}
+```
+
+#### **Material Sourcing Features**
+- **Real-time Pricing**: Connect to Home Depot, Lowe's, and local suppliers
+- **Availability Checking**: Verify in-stock materials at nearby locations
+- **Tool Rental**: Check tool availability and daily rental costs
+- **Price Tracking**: Subscribe to price changes for project materials
+- **Alternative Suggestions**: Find substitute materials when needed
+
+#### **Default Provider Integrations**
+```typescript
+providers = [
+  'home-depot-mcp',    // Hardware, lumber, tools
+  'lowes-mcp',         // Alternative supplier
+  'lumber-yard-mcp',   // Specialty wood
+  'tool-rental-mcp'    // Equipment rental
+]
+```
+
+#### **Material Sourcing Agent**
+- Integrates seamlessly with existing agent architecture
+- Handles natural language requests: "Where can I buy these materials?"
+- Provides cost estimates with alternatives
+- Tracks material availability in real-time
+- Suggests bulk purchasing for savings
+
+#### **MCP Capabilities**
+- Search & filter resources across providers
+- Real-time event subscriptions (price changes, stock updates)
+- Capability invocation (schedule delivery, reserve tools)
+- OAuth 2.0 authentication for secure provider access
+- Rate limiting and caching for performance
+
 ## 🚧 Current Implementation Status
 
 ### Fully Implemented ✅
@@ -181,6 +227,10 @@ PDF generation includes:
 - [x] Toast notification system
 - [x] Performance optimizations
 - [x] Responsive UI
+- [x] Model Context Protocol (MCP) integration
+- [x] Material sourcing from external suppliers
+- [x] Tool availability checking
+- [x] Real-time price tracking
 
 ### Partially Implemented ⚠️
 - [ ] CSG Operations (returns original geometry)
@@ -258,11 +308,12 @@ npm run start:all
 
 ### Environment Variables
 ```env
-# Backend (.env)
+# Backend (backend/.env)
 OPENAI_API_KEY=sk-...
 FRONTEND_URL=http://localhost:3000
 
 # Frontend (.env.local) - Optional
+VITE_BACKEND_URL=http://localhost:3001
 VITE_SUPABASE_URL=...
 VITE_SUPABASE_ANON_KEY=...
 ```
@@ -286,7 +337,7 @@ VITE_SUPABASE_ANON_KEY=...
 ### Medium Term
 1. **Curved Geometry**: Support for chair backs, bent lamination
 2. **Hardware Visualization**: 3D models of screws, hinges, slides
-3. **Material Sourcing**: Links to lumber suppliers
+3. **Enhanced MCP Providers**: Add more lumber yards and specialty suppliers
 4. **CNC Export**: Generate G-code for CNC routers
 5. **Multi-language**: Support for international users
 
@@ -329,6 +380,8 @@ VITE_SUPABASE_ANON_KEY=...
 4. **Professional Toast System**: Full implementation with variants
 5. **Session Management**: Time-based cleanup with cost tracking
 6. **CSG Foundation**: Three-bvh-csg integrated and working
+7. **MCP Integration**: Complete Model Context Protocol implementation for real-world material sourcing
+8. **Material Sourcing Agent**: Natural language material finding with price tracking
 
 ## 📚 Summary
 

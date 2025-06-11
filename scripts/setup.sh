@@ -86,9 +86,9 @@ check_prerequisites() {
         has_errors=true
     fi
     
-    # API key check
-    if [[ -z "${VITE_OPENAI_API_KEY:-}" ]]; then
-        warn "VITE_OPENAI_API_KEY not set - AI features will not work"
+    # Backend setup check
+    if [[ ! -f "backend/.env" ]]; then
+        warn "Backend .env not found - AI features will not work. Run: cd backend && cp env.example .env"
     fi
     
     if [[ "$has_errors" == "true" ]]; then
@@ -149,20 +149,29 @@ run_validations() {
     fi
 }
 
-# Create environment file if needed
-setup_environment_file() {
-    if [[ ! -f ".env" ]] && [[ ! -f ".env.local" ]]; then
-        log "Creating .env.local file..."
+# Create environment files if needed
+setup_environment_files() {
+    # Frontend environment (optional)
+    if [[ ! -f ".env.local" ]]; then
+        log "Creating frontend .env.local file..."
         cat > .env.local << EOF
-# Blueprint Buddy Environment Variables
-# Add your OpenAI API key here:
-VITE_OPENAI_API_KEY=
+# Blueprint Buddy Frontend Environment Variables
+# Backend URL (default is usually fine)
+VITE_BACKEND_URL=http://localhost:3001
 
 # Optional Supabase configuration:
 # VITE_SUPABASE_URL=
 # VITE_SUPABASE_ANON_KEY=
 EOF
-        warn "Created .env.local - please add your API keys"
+        log "Created .env.local"
+    fi
+    
+    # Backend environment setup reminder
+    if [[ ! -f "backend/.env" ]]; then
+        warn "Backend .env not found - please set up:"
+        warn "  cd backend"
+        warn "  cp env.example .env"
+        warn "  # Edit .env and add your OpenAI API key"
     fi
 }
 
@@ -178,7 +187,7 @@ main() {
     check_prerequisites
     install_dependencies
     run_validations
-    setup_environment_file
+    setup_environment_files
     
     # Calculate duration
     local end_time=$(date +%s)
@@ -190,9 +199,10 @@ main() {
     echo -e "${GREEN}✅ Blueprint Buddy is ready!${NC}"
     echo ""
     echo "Next steps:"
-    echo "1. Set your OpenAI API key: export VITE_OPENAI_API_KEY=sk-..."
-    echo "2. Start development: npm run dev"
-    echo "3. Open http://localhost:3000"
+    echo "1. Set up backend: cd backend && cp env.example .env"
+    echo "2. Add your OpenAI API key to backend/.env"
+    echo "3. Start servers: npm run start:all"
+    echo "4. Open http://localhost:3000"
     echo ""
     
     if [[ -n "${CODEX_PROXY_CERT:-}" ]]; then

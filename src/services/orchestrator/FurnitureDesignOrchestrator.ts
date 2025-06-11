@@ -2,12 +2,14 @@ import { Logger } from '@/lib/logger';
 import { SharedStateManager } from '@/services/state/SharedStateManager';
 import { CohesionCoordinator } from '@/services/cohesion/CohesionCoordinator';
 import { CommunicationBus } from '@/services/communication/CommunicationBus';
+import { FurnitureKnowledgeGraph } from '@/services/knowledge/FurnitureKnowledgeGraph';
 import {
   IntentClassifier,
   DimensionAgent,
   MaterialAgent,
   JoineryAgent,
-  ValidationAgent
+  ValidationAgent,
+  MaterialSourcingAgent
 } from '@/services/agents';
 import { IntentType, AgentResponse, SharedState, FurnitureDesign } from '@/lib/types';
 import { PerformanceMonitor } from '@/lib/performance';
@@ -47,6 +49,7 @@ export class FurnitureDesignOrchestrator {
     const materialAgent = new MaterialAgent();
     const joineryAgent = new JoineryAgent();
     const validationAgent = new ValidationAgent();
+    const materialSourcingAgent = new MaterialSourcingAgent();
 
     // Register agents
     this.agents.set('intent', intentClassifier);
@@ -54,6 +57,7 @@ export class FurnitureDesignOrchestrator {
     this.agents.set('material', materialAgent);
     this.agents.set('joinery', joineryAgent);
     this.agents.set('validation', validationAgent);
+    this.agents.set('materialSourcing', materialSourcingAgent);
 
     // Register with communication bus
     this.communicationBus.registerAgent(intentClassifier);
@@ -61,6 +65,7 @@ export class FurnitureDesignOrchestrator {
     this.communicationBus.registerAgent(materialAgent);
     this.communicationBus.registerAgent(joineryAgent);
     this.communicationBus.registerAgent(validationAgent);
+    this.communicationBus.registerAgent(materialSourcingAgent);
 
     this.isInitialized = true;
     this.logger.info('Orchestrator initialized with all agents');
@@ -181,7 +186,7 @@ export class FurnitureDesignOrchestrator {
               const response = await withErrorHandling(
                 () => agent.process(input, state),
                 `Agent processing: ${agentName}`,
-                { success: false, validation_issues: [`Unable to process ${agentName} information`] }
+                { success: false, data: null, validation_issues: [`Unable to process ${agentName} information`] }
               );
               responses.set(agentName, response);
             }
@@ -194,7 +199,7 @@ export class FurnitureDesignOrchestrator {
           const dimResponse = await withErrorHandling(
             () => dimensionAgent.process(input, state),
             'Dimension specification',
-            { success: false, validation_issues: ['Invalid dimensions provided'] }
+            { success: false, data: null, validation_issues: ['Invalid dimensions provided'] }
           );
           responses.set('dimension', dimResponse);
           break;
@@ -205,9 +210,20 @@ export class FurnitureDesignOrchestrator {
           const matResponse = await withErrorHandling(
             () => materialAgent.process(input, state),
             'Material selection',
-            { success: false, validation_issues: ['Unable to process material selection'] }
+            { success: false, data: null, validation_issues: ['Unable to process material selection'] }
           );
           responses.set('material', matResponse);
+          break;
+        }
+
+        case IntentType.MATERIAL_SOURCING: {
+          const materialSourcingAgent = this.agents.get('materialSourcing');
+          const sourcingResponse = await withErrorHandling(
+            () => materialSourcingAgent.process(input, state),
+            'Material sourcing',
+            { success: false, data: null, validation_issues: ['Unable to source materials at this time'] }
+          );
+          responses.set('materialSourcing', sourcingResponse);
           break;
         }
 
@@ -216,7 +232,7 @@ export class FurnitureDesignOrchestrator {
           const joinResponse = await withErrorHandling(
             () => joineryAgent.process(input, state),
             'Joinery method selection',
-            { success: false, validation_issues: ['Unable to determine joinery methods'] }
+            { success: false, data: null, validation_issues: ['Unable to determine joinery methods'] }
           );
           responses.set('joinery', joinResponse);
           break;
@@ -227,7 +243,7 @@ export class FurnitureDesignOrchestrator {
           const valResponse = await withErrorHandling(
             () => validationAgent.process(input, state),
             'Design validation',
-            { success: false, validation_issues: ['Validation check failed'] }
+            { success: false, data: null, validation_issues: ['Validation check failed'] }
           );
           responses.set('validation', valResponse);
           break;
@@ -240,7 +256,7 @@ export class FurnitureDesignOrchestrator {
               const response = await withErrorHandling(
                 () => agent.process(input, state),
                 `Agent processing: ${name}`,
-                { success: false, validation_issues: [`Unable to process ${name} information`] }
+                { success: false, data: null, validation_issues: [`Unable to process ${name} information`] }
               );
               responses.set(name, response);
             }
@@ -254,6 +270,7 @@ export class FurnitureDesignOrchestrator {
       // Add error information to responses
       const errorInfo: AgentResponse = {
         success: false,
+        data: null,
         validation_issues: [ErrorHandler.getUserMessage(error)]
       };
       responses.set('error', errorInfo);
@@ -406,6 +423,35 @@ export class FurnitureDesignOrchestrator {
           return `❌ Design needs adjustments. Score: ${valData.overall_score}/100\n   Let's work on improving the structural integrity.`;
         }
       }
+      
+      case 'materialSourcing': {
+        const sourcingData = response.data;
+        if (sourcingData.sourcedMaterials?.length > 0) {
+          let summary = `✅ Materials sourced from local suppliers!`;
+          if (sourcingData.totalCost > 0) {
+            summary += `\n   💰 Total material cost: $${sourcingData.totalCost.toFixed(2)}`;
+          }
+          if (sourcingData.availability) {
+            const availIcons: Record<string, string> = {
+              'available': '✅',
+              'partial': '⚠️',
+              'unavailable': '❌'
+            };
+            summary += `\n   ${availIcons[sourcingData.availability]} Availability: ${sourcingData.availability}`;
+          }
+          return summary;
+        } else if (sourcingData.requiredTools?.length > 0) {
+          let summary = `🔧 Tool availability checked!`;
+          if (sourcingData.allAvailable) {
+            summary += '\n   ✅ All required tools are available for rental';
+          }
+          if (sourcingData.totalRentalCost > 0) {
+            summary += `\n   💰 Daily rental cost: $${sourcingData.totalRentalCost.toFixed(2)}`;
+          }
+          return summary;
+        }
+        break;
+      }
     }
 
     return '';
@@ -416,7 +462,8 @@ export class FurnitureDesignOrchestrator {
       dimension: 'dimensions',
       material: 'materials',
       joinery: 'joinery methods',
-      validation: 'design validation'
+      validation: 'design validation',
+      materialSourcing: 'material sourcing'
     };
 
     const label = agentLabels[agentName] || agentName;

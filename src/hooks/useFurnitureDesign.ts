@@ -108,9 +108,9 @@ export function useFurnitureDesign(): UseFurnitureDesignReturn {
       // Create error message for chat
       let errorContent = handledError.userMessage;
       
-      // Add special handling for API key errors
-      if (isErrorCode(handledError, ErrorCode.API_KEY_MISSING)) {
-        errorContent += '\n\nTo set up your API key:\n1. Get your key from https://platform.openai.com\n2. Set it as: VITE_OPENAI_API_KEY=sk-your-key';
+      // Add special handling for backend connection errors
+      if (isErrorCode(handledError, ErrorCode.API_CONNECTION_ERROR)) {
+        errorContent += '\n\nTo fix backend connection:\n1. Start the backend server: npm run backend\n2. Ensure backend/.env has OPENAI_API_KEY set';
       }
       
       const errorMessage: Message = {

@@ -57,6 +57,14 @@ export interface User {
     build_time?: string;
   }
   
+  // BuildPlan is used by the Material Sourcing Agent
+  export interface BuildPlan extends FurnitureDesign {
+    projectName: string;
+    instructions: Array<{
+      content: string;
+    }>;
+  }
+  
   export interface Dimensions {
     width: number;
     height: number;
@@ -67,6 +75,24 @@ export interface User {
   export interface Material {
     type: string;
     properties: MaterialProperties;
+    // Added for build plan requirements
+    name?: string;
+    quantity?: number;
+    dimensions?: string;
+    species?: string;
+    // Added for MCP integration
+    sourceResource?: any; // LumberResource | HardwareResource from MCP
+    price?: {
+      amount: number;
+      currency: string;
+      unit: string;
+    };
+    availability?: {
+      in_stock: boolean;
+      quantity: number;
+      location?: string;
+      lead_time?: string;
+    };
   }
   
   export interface MaterialProperties {
@@ -162,11 +188,13 @@ export interface User {
   }
   
   export interface MessageMetadata {
-    agent_responses?: AgentResponse[];
-    design_snapshot?: Partial<FurnitureDesign>;
-    suggestions?: string[];
-    validation_issues?: string[];
-  }
+  agent_responses?: AgentResponse[];
+  design_snapshot?: Partial<FurnitureDesign>;
+  suggestions?: string[];
+  validation_issues?: string[];
+  isError?: boolean;
+  errorCode?: string;
+}
   
   export interface AgentResponse {
     success: boolean;
@@ -184,6 +212,7 @@ export interface User {
     DESIGN_INITIATION = 'DESIGN_INITIATION',
     DIMENSION_SPECIFICATION = 'DIMENSION_SPECIFICATION',
     MATERIAL_SELECTION = 'MATERIAL_SELECTION',
+    MATERIAL_SOURCING = 'MATERIAL_SOURCING',
     JOINERY_METHOD = 'JOINERY_METHOD',
     VALIDATION_CHECK = 'VALIDATION_CHECK',
     EXPORT_REQUEST = 'EXPORT_REQUEST',

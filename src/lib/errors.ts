@@ -19,6 +19,7 @@ export enum ErrorCode {
   API_CONNECTION_ERROR = 1005,
   API_TIMEOUT = 1006,
   API_INVALID_RESPONSE = 1007,
+  API_REQUEST_FAILED = 1008,
   
   // Validation Errors (2xxx)
   VALIDATION_DIMENSIONS = 2001,
@@ -296,7 +297,7 @@ export class ErrorHandler {
       ErrorCode.SYSTEM_UNKNOWN,
       error.message,
       'An error occurred. Please try again.',
-      { cause: error, context }
+      { cause: error, technicalDetails: { context } }
     );
   }
   
@@ -314,7 +315,7 @@ export class ErrorHandler {
       const retryStrategy = error.recoveryStrategies.find(s => s.action === 'retry');
       if (retryStrategy?.implementation) {
         logger.info('Attempting automatic recovery', { errorCode: error.code });
-        retryStrategy.implementation().catch(e => {
+        Promise.resolve(retryStrategy.implementation()).catch((e: any) => {
           logger.error('Automatic recovery failed', e);
         });
       }
@@ -363,7 +364,7 @@ export class ErrorHandler {
    * Get suggestions for repeated error patterns
    */
   private static getPatternSuggestion(code: ErrorCode): string {
-    const suggestions: Record<ErrorCode, string> = {
+    const suggestions: Partial<Record<ErrorCode, string>> = {
       [ErrorCode.API_KEY_MISSING]: 'User needs help setting up API key',
       [ErrorCode.API_RATE_LIMIT]: 'Consider implementing request queuing',
       [ErrorCode.VALIDATION_DIMENSIONS]: 'UI should better communicate size limits',
@@ -423,7 +424,12 @@ export class ErrorHandler {
     code: ErrorCode,
     message: string,
     userMessage: string,
-    options?: Parameters<typeof BlueprintError.prototype.constructor>[3]
+    options?: {
+      cause?: Error;
+      technicalDetails?: any;
+      recoveryStrategies?: RecoveryStrategy[];
+      isRecoverable?: boolean;
+    }
   ): BlueprintError {
     return new BlueprintError(code, message, userMessage, options);
   }

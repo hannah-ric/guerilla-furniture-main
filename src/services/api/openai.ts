@@ -74,18 +74,19 @@ export class OpenAIService {
       backend: this.backendUrl
     });
 
-    const apiKey = config.api.openai.key;
-    if (!apiKey) {
-      this.logger.error('OpenAI API key not configured');
+    // Note: API key validation is handled by the backend
+    // Frontend only needs backend URL to be configured
+    if (!this.backendUrl) {
+      this.logger.error('Backend URL not configured');
       throw ErrorHandler.createError(
-        ErrorCode.API_KEY_MISSING,
-        'OpenAI API key is not configured',
-        'Please add your OpenAI API key to use Blueprint Buddy. Set VITE_OPENAI_API_KEY in your environment.',
+        ErrorCode.API_CONNECTION_ERROR,
+        'Backend service not configured',
+        'Backend URL is not configured. Please set VITE_BACKEND_URL in your environment.',
         {
           recoveryStrategies: [
             {
               action: 'guide',
-              description: 'Follow the setup guide to configure your API key'
+              description: 'Configure backend URL and ensure backend server is running'
             }
           ]
         }

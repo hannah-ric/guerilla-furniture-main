@@ -67,8 +67,8 @@ echo ""
 
 # Environment checks
 echo "Environment:"
-check "OpenAI API key set" "test -n \"\${VITE_OPENAI_API_KEY:-}\"" false
-check "Environment file exists" "test -f .env || test -f .env.local" false
+check "Backend .env exists" "test -f backend/.env" false
+check "Frontend .env.local exists" "test -f .env.local" false
 
 if [[ -n "${CODEX_PROXY_CERT:-}" ]]; then
     check "Codex proxy configured" "test -n \"\$HTTP_PROXY\""

@@ -10,6 +10,7 @@ const IntentClassificationSchema = z.object({
     'DESIGN_INITIATION',
     'DIMENSION_SPECIFICATION',
     'MATERIAL_SELECTION',
+    'MATERIAL_SOURCING',
     'JOINERY_METHOD',
     'VALIDATION_CHECK',
     'EXPORT_REQUEST',
@@ -54,6 +55,13 @@ export class IntentClassifier extends Agent {
     'wood', 'pine', 'oak', 'maple', 'walnut', 'plywood', 'mdf',
     'material', 'lumber', 'board', 'hardwood', 'softwood',
     'cheap', 'expensive', 'budget', 'premium', 'quality'
+  ];
+  
+  private readonly sourcingKeywords = [
+    'source', 'find', 'where', 'buy', 'purchase', 'cost', 'price',
+    'available', 'availability', 'store', 'supplier', 'tool',
+    'rent', 'rental', 'track', 'monitor', 'alternative', 'substitute',
+    'home depot', 'lowes', 'hardware store', 'lumber yard'
   ];
 
   constructor() {
@@ -128,6 +136,50 @@ export class IntentClassifier extends Agent {
       };
     }
 
+    // Material sourcing patterns - check before material selection
+    if (this.sourcingKeywords.some(kw => lowerInput.includes(kw))) {
+      // Check if it's about finding/buying materials or tools
+      if (lowerInput.match(/\b(source|find|where|buy|purchase|cost|price)\b.*\b(material|lumber|wood|hardware|tool)/)) {
+        return {
+          primary_intent: IntentType.MATERIAL_SOURCING,
+          secondary_intents: [],
+          confidence: 'high',
+          entities: this.extractEntities(input),
+          requires_clarification: false,
+          suggested_next_intents: [
+            IntentType.EXPORT_REQUEST,
+            IntentType.VALIDATION_CHECK
+          ]
+        };
+      }
+      
+      // Tool rental patterns
+      if (lowerInput.match(/\b(tool|rent|rental)\b/)) {
+        return {
+          primary_intent: IntentType.MATERIAL_SOURCING,
+          secondary_intents: [],
+          confidence: 'high',
+          entities: this.extractEntities(input),
+          requires_clarification: false,
+          suggested_next_intents: [
+            IntentType.EXPORT_REQUEST
+          ]
+        };
+      }
+      
+      // Price tracking patterns
+      if (lowerInput.match(/\b(track|monitor|alert|notify).*\b(price|cost)/)) {
+        return {
+          primary_intent: IntentType.MATERIAL_SOURCING,
+          secondary_intents: [],
+          confidence: 'high',
+          entities: this.extractEntities(input),
+          requires_clarification: false,
+          suggested_next_intents: []
+        };
+      }
+    }
+
     // Dimension specification patterns
     if (this.dimensionKeywords.some(kw => lowerInput.includes(kw))) {
       return {
@@ -153,6 +205,7 @@ export class IntentClassifier extends Agent {
         requires_clarification: false,
         suggested_next_intents: [
           IntentType.JOINERY_METHOD,
+          IntentType.MATERIAL_SOURCING,
           IntentType.VALIDATION_CHECK
         ]
       };
@@ -167,6 +220,7 @@ export class IntentClassifier extends Agent {
         entities: {},
         requires_clarification: false,
         suggested_next_intents: [
+          IntentType.MATERIAL_SOURCING,
           IntentType.EXPORT_REQUEST
         ]
       };
@@ -190,6 +244,7 @@ Classify this input according to these furniture design intents:
 - DESIGN_INITIATION: Starting a new furniture design (table, chair, shelf, etc.)
 - DIMENSION_SPECIFICATION: Specifying size, measurements, or spatial requirements
 - MATERIAL_SELECTION: Choosing wood types, materials, or discussing material properties
+- MATERIAL_SOURCING: Finding where to buy materials, checking prices, tool rental, tracking prices
 - JOINERY_METHOD: Selecting connection methods, joints, or assembly techniques
 - STYLE_AESTHETIC: Defining visual style, appearance, or design aesthetic
 - MODIFICATION_REQUEST: Changing existing design elements

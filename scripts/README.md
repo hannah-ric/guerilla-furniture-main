@@ -91,13 +91,13 @@ npm run start:all
 
 2. **Run setup**
    ```bash
-   # For Codex environments
-   export VITE_OPENAI_API_KEY=sk-your-key
+   # Run setup script
    bash scripts/setup.sh
    
-   # For local development
-   bash scripts/setup.sh
-   # Then add your API key to backend/.env
+   # Set up backend environment
+   cd backend
+   cp env.example .env
+   # Edit .env and add your OpenAI API key
    ```
 
 3. **Verify setup**
@@ -116,14 +116,15 @@ npm run start:all
 
 The setup script will help create necessary environment files:
 
-**Backend (.env):**
+**Backend (`backend/.env`):**
 ```env
 OPENAI_API_KEY=sk-your-openai-api-key
 FRONTEND_URL=http://localhost:3000
 ```
 
-**Frontend (.env.local):** (Optional)
+**Frontend (`.env.local`):** (Optional)
 ```env
+VITE_BACKEND_URL=http://localhost:3001
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
 ```
