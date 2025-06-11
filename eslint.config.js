@@ -31,6 +31,8 @@ export default [
       '@typescript-eslint/no-unused-vars': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/ban-ts-comment': 'off',
+      'no-unused-vars': 'warn',  // Downgrade to warning
+      'no-undef': 'off',         // Disable for TypeScript files
     },
   },
 ]; 

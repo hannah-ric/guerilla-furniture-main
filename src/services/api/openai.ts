@@ -101,10 +101,21 @@ export class OpenAIService {
   };
 
   constructor(apiKey?: string) {
-    this.client = new OpenAI({
+    // Configure for Codex environment proxy if needed
+    const config: any = {
       apiKey: apiKey || import.meta.env.VITE_OPENAI_API_KEY,
       dangerouslyAllowBrowser: true // For MVP - move to backend in production
-    });
+    };
+
+    // In Codex environments, configure proxy settings
+    if (typeof process !== 'undefined' && process.env?.CODEX_PROXY_CERT) {
+      config.httpAgent = new (require('https').Agent)({
+        ca: require('fs').readFileSync(process.env.CODEX_PROXY_CERT),
+        proxy: 'http://proxy:8080'
+      });
+    }
+
+    this.client = new OpenAI(config);
   }
 
   /**
