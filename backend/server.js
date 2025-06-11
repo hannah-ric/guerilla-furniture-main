@@ -26,10 +26,17 @@ const limiter = rateLimit({
 
 app.use('/api/', limiter);
 
-// OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+// OpenAI client - handle missing API key for development
+let openai = null;
+const isDevelopment = !process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'sk-test-key-for-development';
+
+if (!isDevelopment) {
+  openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY
+  });
+} else {
+  console.log('🚧 Running in development mode without OpenAI API key');
+}
 
 // Request validation schemas
 const ChatRequestSchema = z.object({
@@ -163,15 +170,30 @@ app.post('/api/chat', async (req, res) => {
       content: message
     });
 
-    const response = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
-      messages,
-      temperature: 0.7,
-      max_tokens: 1000
-    });
-
-    const usage = response.usage;
-    const cost = calculateCost(usage.prompt_tokens, usage.completion_tokens);
+    let response, usage, cost;
+    
+    if (openai) {
+      // Real OpenAI API call
+      response = await openai.chat.completions.create({
+        model: 'gpt-3.5-turbo',
+        messages,
+        temperature: 0.7,
+        max_tokens: 1000
+      });
+      usage = response.usage;
+      cost = calculateCost(usage.prompt_tokens, usage.completion_tokens);
+    } else {
+      // Development mode mock response
+      response = {
+        choices: [{
+          message: {
+            content: `🚧 Development Mode Response for: "${message}"\n\nI'm Blueprint Buddy, your furniture design assistant! I understand you want to work on a furniture project. Here's what I can help you with:\n\n• Design specifications and dimensions\n• Material selection and cost estimation\n• Joinery methods and construction techniques\n• Step-by-step build instructions\n• 3D visualization and modeling\n\nTo get started, please tell me:\n1. What type of furniture are you planning to build?\n2. What are your space constraints?\n3. What's your skill level and available tools?\n\nI'll guide you through creating a complete, buildable furniture plan!`
+          }
+        }]
+      };
+      usage = { prompt_tokens: 50, completion_tokens: 150, total_tokens: 200 };
+      cost = 0.001; // Mock cost
+    }
     
     // Update session cost
     const totalCost = sessionManager.addCost(sessionId, cost);
@@ -224,29 +246,39 @@ app.post('/api/agent/:agentName', async (req, res) => {
       });
     }
     
-    const response = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
-      messages: [
-        {
-          role: 'system',
-          content: `You are the ${agentName} agent in a furniture design system. Respond with valid JSON.`
-        },
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      temperature: 0.7,
-      max_tokens: 1000,
-      response_format: { type: 'json_object' }
-    });
-
-    const content = response.choices[0].message.content;
-    const data = JSON.parse(content);
+    let response, data, usage, cost;
+    
+    if (openai) {
+      // Real OpenAI API call
+      response = await openai.chat.completions.create({
+        model: 'gpt-3.5-turbo',
+        messages: [
+          {
+            role: 'system',
+            content: `You are the ${agentName} agent in a furniture design system. Respond with valid JSON.`
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 1000,
+        response_format: { type: 'json_object' }
+      });
+      
+      const content = response.choices[0].message.content;
+      data = JSON.parse(content);
+      usage = response.usage;
+      cost = calculateCost(usage.prompt_tokens, usage.completion_tokens);
+    } else {
+      // Development mode mock response based on agent type
+      data = generateMockAgentResponse(agentName, prompt);
+      usage = { prompt_tokens: 30, completion_tokens: 100, total_tokens: 130 };
+      cost = 0.0005; // Mock cost
+    }
     
     // Calculate and track cost
-    const usage = response.usage;
-    const cost = calculateCost(usage.prompt_tokens, usage.completion_tokens);
     sessionManager.addCost(sessionId, cost);
 
     res.json({

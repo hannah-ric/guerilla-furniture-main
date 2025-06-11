@@ -14,10 +14,16 @@ export function Home() {
         <p className="text-xl text-muted-foreground mb-8">
           Design custom furniture with AI assistance
         </p>
-        <Button size="lg" onClick={() => navigate('/designer')} className="gap-2">
-          <Sparkles className="h-5 w-5" />
-          Start Designing
-        </Button>
+        <div className="flex gap-4 justify-center">
+          <Button size="lg" onClick={() => navigate('/designer')} className="gap-2">
+            <Sparkles className="h-5 w-5" />
+            Start Designing
+          </Button>
+          <Button size="lg" variant="outline" onClick={() => navigate('/parametric')} className="gap-2">
+            <Hammer className="h-5 w-5" />
+            AI Parametric Designer
+          </Button>
+        </div>
       </div>
 
       <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mt-16">

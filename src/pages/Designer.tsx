@@ -1,6 +1,6 @@
 import React, { lazy, Suspense, useCallback, useMemo } from 'react';
 import { useFurnitureDesign } from '@/hooks/useFurnitureDesign';
-import { DesignChatInterface } from '@/components/chat/DesignChatInterface';
+import { EnhancedDesignChatInterface } from '@/components/chat/EnhancedDesignChatInterface';
 import { ValidationStatus } from '@/components/shared/ValidationStatus';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -99,6 +99,7 @@ export function Designer() {
   const [isExporting, setIsExporting] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState('3d');
   const [backendHealthy, setBackendHealthy] = React.useState<boolean | null>(null);
+  const [enhancedDesign, setEnhancedDesign] = React.useState(design);
   
   // Check backend health on mount
   React.useEffect(() => {
@@ -118,6 +119,11 @@ export function Designer() {
     
     checkBackend();
   }, [toast]);
+
+  // Sync enhanced design with main design
+  React.useEffect(() => {
+    setEnhancedDesign(design);
+  }, [design]);
   
   // Memoize expensive calculations
   const canExport = useMemo(() => {
@@ -248,12 +254,19 @@ export function Designer() {
       <div className="flex-1 flex overflow-hidden">
         {/* Chat Section */}
         <div className="w-1/2 border-r flex flex-col">
-          <DesignChatInterface
+          <EnhancedDesignChatInterface
             messages={messages}
             onSendMessage={sendMessage}
             isLoading={isLoading}
             suggestions={suggestions.length > 0 ? suggestions : defaultSuggestions}
             designProgress={designProgress}
+            design={enhancedDesign}
+            onDesignUpdate={setEnhancedDesign}
+            onParameterUpdate={(parameterId, value) => {
+              // Handle parameter updates
+              console.log(`Parameter ${parameterId} updated to:`, value);
+            }}
+            onExportPDF={handleDownload}
           />
         </div>
         
@@ -269,7 +282,7 @@ export function Designer() {
             <TabsContent value="3d" className="flex-1">
               <Suspense fallback={<TabLoading />}>
                 <FurnitureViewer 
-                  design={design}
+                  design={enhancedDesign || design}
                   showDimensions
                   enableAnimation
                 />

@@ -4,6 +4,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { ToastProvider } from '@/components/ui/use-toast';
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
 import { Designer } from '@/pages/Designer';
+import { ParametricDesigner } from '@/pages/ParametricDesigner';
 import { Home } from '@/pages/Home';
 import { SavedPlans } from '@/pages/SavedPlans';
 
@@ -16,6 +17,7 @@ function App() {
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/designer" element={<Designer />} />
+              <Route path="/parametric" element={<ParametricDesigner />} />
               <Route path="/plans" element={<SavedPlans />} />
               <Route path="/plan/:id" element={<Designer />} />
             </Routes>
