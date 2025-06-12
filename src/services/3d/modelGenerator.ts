@@ -53,9 +53,8 @@ export class ModelGenerator {
       
       // Generate the furniture geometry
       const modelData = await withErrorHandling(
-        () => this.geometryGenerator.generateFurnitureModel(design),
-        'Generating furniture geometry',
-        null
+        async () => this.geometryGenerator.generateFurnitureModel(design),
+        'Generating furniture geometry'
       );
       
       if (!modelData) {

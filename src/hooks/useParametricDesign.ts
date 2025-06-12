@@ -60,7 +60,10 @@ export function useParametricDesign(): UseParametricDesignReturn {
           height: baseDesign.design.dimensions?.height || 30,
           depth: baseDesign.design.dimensions?.depth || 16
         },
-        material: baseDesign.design.materials?.[0] || 'plywood',
+        material:
+          baseDesign.design.materials?.[0]?.type ||
+          baseDesign.design.materials?.[0]?.name ||
+          'plywood',
         joinery: 'pocket_screw',
         style: 'modern',
         customParameters: {}
@@ -283,12 +286,12 @@ export function useParametricDesign(): UseParametricDesignReturn {
     
     try {
       switch (format) {
-        case 'pdf':
+        case 'pdf': {
           // Use existing PDF export functionality
           const { PDFExporter } = await import('@/services/export/PDFExporter');
           const exporter = new PDFExporter();
           const pdfBlob = await exporter.exportDesign(baseDesign.design);
-          
+
           const url = URL.createObjectURL(pdfBlob);
           const link = document.createElement('a');
           link.href = url;
@@ -298,6 +301,7 @@ export function useParametricDesign(): UseParametricDesignReturn {
           document.body.removeChild(link);
           URL.revokeObjectURL(url);
           break;
+        }
         
         case 'gltf':
         case 'stl':

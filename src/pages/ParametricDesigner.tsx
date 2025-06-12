@@ -4,6 +4,7 @@ import { EnhancedDesignChatInterface } from '@/components/chat/EnhancedDesignCha
 import { ParametricControlPanel } from '@/components/chat/ParametricControlPanel';
 import { BuildPlanViewer } from '@/components/chat/BuildPlanViewer';
 import { OptimizationSuggestions } from '@/components/chat/OptimizationSuggestions';
+import { AIParametricModelGenerator } from '@/services/3d/AIParametricModelGenerator';
 import { ValidationStatus } from '@/components/shared/ValidationStatus';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -134,6 +135,7 @@ export function ParametricDesigner() {
   const [isExporting, setIsExporting] = useState(false);
   const [activeTab, setActiveTab] = useState('3d');
   const [backendHealthy, setBackendHealthy] = useState<boolean | null>(null);
+  const aiGenerator = useMemo(() => new AIParametricModelGenerator(), []);
   
   // Check backend health on mount
   React.useEffect(() => {
@@ -320,15 +322,9 @@ export function ParametricDesigner() {
         {/* Chat Section */}
         <div className="w-1/3 border-r flex flex-col">
           <EnhancedDesignChatInterface
-            messages={messages}
-            onSendMessage={sendMessage}
-            isLoading={isLoading || isUpdatingParameter}
-            suggestions={suggestions.length > 0 ? suggestions : defaultSuggestions}
-            designProgress={designProgress}
-            design={design}
-            onDesignUpdate={() => {}} // Handled by the parametric hook
-            onParameterUpdate={handleParameterUpdate}
-            onExportPDF={handleExportPDF}
+            initialDesign={design || undefined}
+            onDesignUpdate={() => {}}
+            className="flex-1"
           />
         </div>
         
@@ -339,25 +335,24 @@ export function ParametricDesigner() {
           </div>
           <div className="flex-1">
             <Suspense fallback={<TabLoading />}>
-              <ParametricFurnitureViewer 
-                design={design}
-                parameters={parameters}
-                onParameterUpdate={handleParameterUpdate}
-                showDimensions
-                enableAnimation
-                enableExplodedView
-              />
+              {design && (
+                <ParametricFurnitureViewer
+                  design={design}
+                  aiGenerator={aiGenerator}
+                  showControls
+                />
+              )}
             </Suspense>
           </div>
           
           {/* Parameter Controls */}
-          {parameters && (
+          {design && (
             <div className="border-t">
               <ParametricControlPanel
-                parameters={parameters}
-                onParameterUpdate={handleParameterUpdate}
-                onNaturalLanguageRequest={handleNaturalLanguageRequest}
-                isUpdating={isUpdatingParameter}
+                design={design}
+                onParameterChange={handleParameterUpdate}
+                realTimeMode={false}
+                isGenerating={isUpdatingParameter}
               />
             </div>
           )}
@@ -386,20 +381,23 @@ export function ParametricDesigner() {
             </TabsList>
             
             <TabsContent value="build" className="flex-1 overflow-auto">
-              <BuildPlanViewer
-                documentation={buildDocumentation}
-                design={design!}
-                onExport={handleExportPDF}
-              />
+              {design && (
+                <BuildPlanViewer
+                  documentation={buildDocumentation}
+                  design={design}
+                  onExport={handleExportPDF}
+                />
+              )}
             </TabsContent>
             
             <TabsContent value="optimize" className="flex-1 overflow-auto p-4">
-              <OptimizationSuggestions
-                suggestions={optimizationSuggestions}
-                onApplySuggestion={handleApplyOptimization}
-                isGenerating={isGeneratingModel}
-                onRegenerate={generateOptimizedModel}
-              />
+              {design && (
+                <OptimizationSuggestions
+                  optimizations={optimizationSuggestions}
+                  design={design}
+                  onApplyOptimization={(opt) => handleApplyOptimization(opt.id)}
+                />
+              )}
             </TabsContent>
             
             <TabsContent value="settings" className="flex-1 overflow-auto p-4">

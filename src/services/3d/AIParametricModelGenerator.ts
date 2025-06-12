@@ -161,7 +161,7 @@ export class AIParametricModelGenerator {
         'Failed to process modeling request',
         'I encountered an issue updating your design. Please try rephrasing your request or breaking it into smaller changes.',
         {
-          cause: error,
+          cause: error as Error,
           technicalDetails: { request },
           recoveryStrategies: [
             {
@@ -327,14 +327,10 @@ export class AIParametricModelGenerator {
   }> {
     const prompt = this.buildAnalysisPrompt(request);
     
-    const response = await withErrorHandling(
-      () => this.openAIService.generateResponse(prompt, {
-        temperature: 0.1,
-        max_tokens: 1500
-      }),
-      'AI request analysis',
-      null
-    );
+      const response = await withErrorHandling(
+        () => this.openAIService.generateResponse(prompt),
+        'AI request analysis'
+      );
 
     if (!response) {
       throw new Error('Failed to analyze user request');
@@ -435,14 +431,10 @@ Consider structural integrity, proportions, and feasibility.
 
     const optimizationPrompt = this.buildOptimizationPrompt(design, request.contextualConstraints);
     
-    const response = await withErrorHandling(
-      () => this.openAIService.generateResponse(optimizationPrompt, {
-        temperature: 0.2,
-        max_tokens: 1000
-      }),
-      'Design optimization',
-      null
-    );
+      const response = await withErrorHandling(
+        () => this.openAIService.generateResponse(optimizationPrompt),
+        'Design optimization'
+      );
 
     if (!response) {
       return design;
@@ -499,14 +491,10 @@ Provide validation as JSON:
 Check load distribution, joint strength, and proportions.
 `;
     
-    const response = await withErrorHandling(
-      () => this.openAIService.generateResponse(validationPrompt, {
-        temperature: 0.1,
-        max_tokens: 800
-      }),
-      'Design validation',
-      null
-    );
+      const response = await withErrorHandling(
+        () => this.openAIService.generateResponse(validationPrompt),
+        'Design validation'
+      );
 
     if (!response) {
       return design;
@@ -569,14 +557,10 @@ Provide updates as JSON:
 }
 `;
     
-    const response = await withErrorHandling(
-      () => this.openAIService.generateResponse(prompt, {
-        temperature: 0.2,
-        max_tokens: 1200
-      }),
-      'Build plan generation',
-      null
-    );
+      const response = await withErrorHandling(
+        () => this.openAIService.generateResponse(prompt),
+        'Build plan generation'
+      );
 
     if (!response) {
       return this.generateBasicBuildPlanUpdates(originalDesign, updatedDesign);

@@ -47,16 +47,27 @@ export const EnhancedDesignChatInterface: React.FC<EnhancedDesignChatProps> = ({
 }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [currentDesign, setCurrentDesign] = useState<FurnitureDesign>(initialDesign || {
-    id: 'new-design',
-    name: 'New Furniture Project',
-    furniture_type: '',
-    description: '',
-    dimensions: { width: 0, height: 0, depth: 0 },
-    materials: [],
-    joinery: [],
-    validation_status: 'pending'
-  });
+  const [currentDesign, setCurrentDesign] = useState<FurnitureDesign>(
+    initialDesign ||
+      ({
+        id: 'new-design',
+        name: 'New Furniture Project',
+        furniture_type: 'table',
+        description: '',
+        dimensions: { width: 0, height: 0, depth: 0, unit: 'inches' },
+        materials: [],
+        joinery: [],
+        hardware: [],
+        features: [],
+        validation_status: 'pending',
+        estimated_cost: 0,
+        estimated_build_time: '',
+        difficulty_level: 'beginner',
+        weight_estimate: 0,
+        created_at: new Date(),
+        updated_at: new Date(),
+      } as unknown as FurnitureDesign)
+  );
   
   const [modelState, setModelState] = useState<ModelState>({
     current3DModel: null,
@@ -146,8 +157,6 @@ export const EnhancedDesignChatInterface: React.FC<EnhancedDesignChatProps> = ({
           timestamp: new Date(),
           metadata: {
             suggestions: response.suggestions,
-            validationResults: response.validationResults,
-            designProgress: response.designProgress
           }
         };
 
@@ -204,7 +213,8 @@ export const EnhancedDesignChatInterface: React.FC<EnhancedDesignChatProps> = ({
         updateType: 'complete_redesign' as const,
         contextualConstraints: {
           structuralRequirements: { stability: 'high' as const },
-          skillConstraints: { 
+          materialConstraints: {},
+          skillConstraints: {
             userSkillLevel: 'intermediate' as const,
             availableTools: ['saw', 'drill', 'router', 'sander']
           },
@@ -405,11 +415,7 @@ export const EnhancedDesignChatInterface: React.FC<EnhancedDesignChatProps> = ({
               <div className="flex-1 mb-4">
                 <MessageList messages={messages} isLoading={isLoading} />
               </div>
-              <MessageInput 
-                onSendMessage={handleSendMessage} 
-                disabled={isLoading}
-                placeholder="Describe your furniture project or request changes..."
-              />
+              <MessageInput onSend={handleSendMessage} disabled={isLoading} />
             </TabsContent>
 
             <TabsContent value="parameters" className="flex-1 p-4">
@@ -477,10 +483,8 @@ export const EnhancedDesignChatInterface: React.FC<EnhancedDesignChatProps> = ({
             {shouldUpdate3DModel(currentDesign) ? (
               <FurnitureViewer
                 design={currentDesign}
-                showControls={true}
-                showAssemblySteps={true}
-                enableVR={false}
-                className="w-full h-full"
+                showDimensions
+                enableAnimation
               />
             ) : (
               <div className="flex items-center justify-center h-full bg-gray-100">

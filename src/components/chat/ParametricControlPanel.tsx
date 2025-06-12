@@ -139,28 +139,7 @@ export const ParametricControlPanel: React.FC<ParametricControlPanelProps> = ({
             impact: 'medium',
             description: 'Main material for construction'
           },
-          {
-            name: 'material_thickness',
-            displayName: 'Board Thickness',
-            type: 'select',
-            value: primaryMaterial.thickness || 0.75,
-            constraints: {
-              options: ['0.5', '0.75', '1.0', '1.5', '2.0']
-            },
-            impact: 'medium',
-            description: 'Thickness of the primary boards'
-          },
-          {
-            name: 'material_grade',
-            displayName: 'Material Grade',
-            type: 'select',
-            value: primaryMaterial.grade || 'standard',
-            constraints: {
-              options: ['economy', 'standard', 'premium', 'select']
-            },
-            impact: 'low',
-            description: 'Quality grade of the material'
-          }
+          // Additional material parameters could be added here
         ]
       });
     }
@@ -175,7 +154,7 @@ export const ParametricControlPanel: React.FC<ParametricControlPanelProps> = ({
             name: 'joinery_method',
             displayName: 'Primary Joinery',
             type: 'select',
-            value: design.joinery[0].method,
+              value: design.joinery[0].type,
             constraints: {
               options: ['pocket_screw', 'mortise_tenon', 'dowel', 'dado', 'biscuit', 'dovetail']
             },

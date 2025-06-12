@@ -47,7 +47,7 @@ const ModelComponent: React.FC<{
   animationProgress: number;
   renderMode: string;
 }> = ({ model, isExploded, animationProgress, renderMode }) => {
-  const meshRef = useRef<THREE.Group>();
+  const meshRef = useRef<THREE.Group | null>(null);
 
   useFrame((state, delta) => {
     if (meshRef.current && model) {
@@ -130,7 +130,8 @@ export const ParametricFurnitureViewer: React.FC<ParametricFurnitureViewerProps>
         updateType: 'complete_redesign' as const,
         contextualConstraints: {
           structuralRequirements: { stability: 'high' as const },
-          skillConstraints: { 
+          materialConstraints: {},
+          skillConstraints: {
             userSkillLevel: 'intermediate' as const,
             availableTools: ['saw', 'drill', 'router']
           },
