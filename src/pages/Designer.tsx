@@ -255,18 +255,9 @@ export function Designer() {
         {/* Chat Section */}
         <div className="w-1/2 border-r flex flex-col">
           <EnhancedDesignChatInterface
-            messages={messages}
-            onSendMessage={sendMessage}
-            isLoading={isLoading}
-            suggestions={suggestions.length > 0 ? suggestions : defaultSuggestions}
-            designProgress={designProgress}
-            design={enhancedDesign}
+            initialDesign={enhancedDesign || design || undefined}
             onDesignUpdate={setEnhancedDesign}
-            onParameterUpdate={(parameterId, value) => {
-              // Handle parameter updates
-              console.log(`Parameter ${parameterId} updated to:`, value);
-            }}
-            onExportPDF={handleDownload}
+            className="flex-1"
           />
         </div>
         

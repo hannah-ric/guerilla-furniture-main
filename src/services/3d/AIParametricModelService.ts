@@ -56,13 +56,18 @@ export class AIParametricModelService {
     suggestions: OptimizationSuggestion[];
   }> {
     try {
-      // Generate the parametric model
-      const modelResult = await this.generator.generateParametricModel(
-        design.furniture_type || 'table',
-        parameters.dimensions,
-        parameters.material,
-        parameters.joinery
-      );
+      // Generate the parametric model using the AI generator
+      const modelResult = await this.generator.processModelingRequest({
+        userRequest: 'initial design',
+        currentDesign: design,
+        updateType: 'complete_redesign',
+        contextualConstraints: {
+          structuralRequirements: {},
+          materialConstraints: {},
+          skillConstraints: { userSkillLevel: 'beginner', availableTools: [] },
+          aestheticPreferences: {}
+        }
+      });
 
       // Generate build documentation
       const documentation = await this.generateBuildDocumentation(design, parameters, modelResult);
@@ -140,10 +145,7 @@ export class AIParametricModelService {
         }
       `;
 
-      const response = await openAIService.chat([{
-        role: 'user',
-        content: prompt
-      }]);
+      const response = await openAIService.generateResponse(prompt);
 
       const result = JSON.parse(response);
       
@@ -179,10 +181,7 @@ export class AIParametricModelService {
         Provide a detailed cut list, hardware list, step-by-step instructions, and time estimate.
       `;
 
-      const response = await openAIService.chat([{
-        role: 'user',
-        content: prompt
-      }]);
+      const response = await openAIService.generateResponse(prompt);
 
       // Parse the response and structure it
       return {

@@ -3,7 +3,7 @@
  * Handles communication with MCP servers and provides integration with Blueprint Buddy
  */
 
-import { EventEmitter } from 'events';
+import { SimpleEventEmitter } from '@/lib/SimpleEventEmitter';
 import {
   MCPMessage,
   MCPRequest,
@@ -44,7 +44,7 @@ interface PendingRequest {
   retries: number;
 }
 
-export class MCPClient extends EventEmitter {
+export class MCPClient extends SimpleEventEmitter {
   private logger = Logger.createScoped('MCPClient');
   private providers: Map<string, MCPProvider> = new Map();
   private connections: Map<string, WebSocket> = new Map();
