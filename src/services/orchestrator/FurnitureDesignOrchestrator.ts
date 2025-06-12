@@ -1,6 +1,6 @@
 import { Logger } from '@/lib/logger';
 import { SharedStateManager } from '@/services/state/SharedStateManager';
-import { CohesionCoordinator } from '@/services/cohesion/cohesionCoordinator';
+import { CohesionCoordinator } from '@/services/cohesion/CohesionCoordinator';
 import { CommunicationBus } from '@/services/communication/CommunicationBus';
 import { FurnitureKnowledgeGraph } from '@/services/knowledge/FurnitureKnowledgeGraph';
 import {
