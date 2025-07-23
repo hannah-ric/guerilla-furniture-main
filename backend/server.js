@@ -28,14 +28,16 @@ app.use('/api/', limiter);
 
 // OpenAI client - handle missing API key for development
 let openai = null;
-const isDevelopment = !process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'sk-test-key-for-development';
+const isDevelopment = !process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'sk-test-key-for-development' || process.env.OPENAI_API_KEY === 'sk-your-openai-api-key-here';
 
 if (!isDevelopment) {
   openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
   });
+  console.log('✅ OpenAI client initialized with API key');
 } else {
   console.log('🚧 Running in development mode without OpenAI API key');
+  console.log('   Set OPENAI_API_KEY in backend/.env for full functionality');
 }
 
 // Request validation schemas
@@ -374,4 +376,4 @@ const server = app.listen(PORT, () => {
   console.log(`Backend server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`CORS enabled for: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
-});    
+});                

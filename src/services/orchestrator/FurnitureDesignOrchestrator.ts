@@ -3,6 +3,7 @@ import { SharedStateManager } from '@/services/state/SharedStateManager';
 import { CohesionCoordinator } from '@/services/cohesion/CohesionCoordinator';
 import { CommunicationBus } from '@/services/communication/CommunicationBus';
 import { FurnitureKnowledgeGraph } from '@/services/knowledge/FurnitureKnowledgeGraph';
+import { ModelGenerator } from '@/services/3d/modelGenerator';
 import {
   IntentClassifier,
   DimensionAgent,
@@ -28,6 +29,7 @@ export class FurnitureDesignOrchestrator {
   private stateManager: SharedStateManager;
   private cohesionCoordinator: CohesionCoordinator;
   private communicationBus: CommunicationBus;
+  private modelGenerator: ModelGenerator;
   private agents: Map<string, any>;
   private isInitialized = false;
 
@@ -35,6 +37,7 @@ export class FurnitureDesignOrchestrator {
     this.stateManager = SharedStateManager.getInstance();
     this.cohesionCoordinator = new CohesionCoordinator();
     this.communicationBus = CommunicationBus.getInstance();
+    this.modelGenerator = new ModelGenerator();
     this.agents = new Map();
   }
 
@@ -131,6 +134,14 @@ export class FurnitureDesignOrchestrator {
           harmonizationResult.conflicts,
           intentResult.data
         );
+        
+        if (harmonizationResult.finalState && harmonizationResult.finalState.design) {
+          try {
+            await this.generateModel(harmonizationResult.finalState.design);
+          } catch (error) {
+            this.logger.error('3D model generation failed', error);
+          }
+        }
         
         // Step 5: Run validation if design is complete enough
         if (this.shouldRunValidation(harmonizationResult.finalState)) {
@@ -590,4 +601,15 @@ export class FurnitureDesignOrchestrator {
   getState(): SharedState {
     return this.stateManager.getState();
   }
-} 
+
+  private async generateModel(design: any): Promise<void> {
+    if (this.modelGenerator && design) {
+      try {
+        await this.modelGenerator.generateModel(design);
+        this.logger.info('3D model generated successfully');
+      } catch (error) {
+        this.logger.error('3D model generation failed', error);
+      }
+    }
+  }
+}       
