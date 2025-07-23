@@ -6,6 +6,8 @@ export class SharedStateManager {
   private state: SharedState;
   private subscribers: Map<string, (state: SharedState) => void> = new Map();
   private logger = Logger.createScoped('SharedStateManager');
+  private cachedState: SharedState | null = null;
+  private lastVersion: number = -1;
 
   private constructor() {
     this.state = this.createInitialState();
@@ -42,7 +44,12 @@ export class SharedStateManager {
   }
 
   getState(): SharedState {
-    return { ...this.state };
+    if (this.cachedState && this.lastVersion === this.state.version) {
+      return this.cachedState;
+    }
+    this.cachedState = { ...this.state };
+    this.lastVersion = this.state.version;
+    return this.cachedState;
   }
 
   updateDesign(
@@ -170,6 +177,8 @@ export class SharedStateManager {
 
   reset(): void {
     this.state = this.createInitialState();
+    this.cachedState = null;
+    this.lastVersion = -1;
     this.notifySubscribers();
     this.logger.info('State reset');
   }
@@ -210,4 +219,4 @@ export class SharedStateManager {
   getVersion(): number {
     return this.state.version;
   }
-} 
+}  

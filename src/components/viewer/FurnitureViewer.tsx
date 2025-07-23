@@ -85,6 +85,14 @@ const FurnitureModel = React.memo(({
       cancelled = true;
     };
   }, [design, generator, onModelLoad]);
+
+  useEffect(() => {
+    return () => {
+      if (generator && typeof generator.dispose === 'function') {
+        generator.dispose();
+      }
+    };
+  }, [generator]);
   
   useEffect(() => {
     if (!model) return;
