@@ -38,6 +38,26 @@ export class ModelGenerator {
     this.exporter = new GLTFExporter();
   }
 
+  dispose(): void {
+    if (this.scene) {
+      this.scene.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          if (child.geometry) {
+            child.geometry.dispose();
+          }
+          if (child.material) {
+            if (Array.isArray(child.material)) {
+              child.material.forEach(material => material.dispose());
+            } else {
+              child.material.dispose();
+            }
+          }
+        }
+      });
+      this.scene.clear();
+    }
+  }
+
   /**
    * Generate complete 3D model with assembled and exploded views
    */

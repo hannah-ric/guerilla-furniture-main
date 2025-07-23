@@ -92,9 +92,16 @@ class SessionManager {
   }
 
   startCleanupInterval() {
-    setInterval(() => {
+    this.cleanupIntervalId = setInterval(() => {
       this.cleanupExpiredSessions();
     }, this.CLEANUP_INTERVAL);
+  }
+
+  stopCleanupInterval() {
+    if (this.cleanupIntervalId) {
+      clearInterval(this.cleanupIntervalId);
+      this.cleanupIntervalId = null;
+    }
   }
 
   cleanupExpiredSessions() {
@@ -347,6 +354,16 @@ function calculateCost(promptTokens, completionTokens) {
 // Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('SIGTERM received, shutting down gracefully');
+  sessionManager.stopCleanupInterval();
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully');
+  sessionManager.stopCleanupInterval();
   server.close(() => {
     console.log('Server closed');
     process.exit(0);
@@ -357,4 +374,4 @@ const server = app.listen(PORT, () => {
   console.log(`Backend server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`CORS enabled for: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
-}); 
+});    

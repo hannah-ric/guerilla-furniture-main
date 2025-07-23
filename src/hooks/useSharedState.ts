@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 
 export function useSharedState() {
   const [state, setState] = useState({
@@ -6,13 +6,13 @@ export function useSharedState() {
     version: 0
   });
 
-  const updateDesign = async (updates: any) => {
+  const updateDesign = useCallback((updates: any) => {
     setState(prev => ({
       ...prev,
       design: { ...prev.design, ...updates },
       version: prev.version + 1
     }));
-  };
+  }, []);
 
   const reset = () => {
     setState({
