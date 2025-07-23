@@ -17,6 +17,15 @@ export default {
         },
       },
       extend: {
+        fontFamily: {
+          'serif': ['Crimson Text', 'serif'],
+          'heading': ['Source Serif Pro', 'serif'],
+        },
+        backgroundImage: {
+          'wood-oak': "url('/assets/textures/oak-grain.jpg')",
+          'wood-walnut': "url('/assets/textures/walnut-grain.jpg')",
+          'wood-pine': "url('/assets/textures/pine-grain.jpg')",
+        },
         colors: {
           border: "hsl(var(--border))",
           input: "hsl(var(--input))",

@@ -275,11 +275,11 @@ export const ParametricControlPanel: React.FC<ParametricControlPanelProps> = ({
     };
 
     return (
-      <Card key={parameter.name} className={`${isLocked ? 'opacity-50' : ''} ${hasPendingChange ? 'ring-2 ring-blue-500' : ''}`}>
+      <Card key={parameter.name} className={`workshop-card ${isLocked ? 'opacity-50' : ''} ${hasPendingChange ? 'ring-2 ring-primary' : ''}`}>
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center space-x-2">
-              <label className="text-sm font-medium text-gray-700">
+              <label className="text-sm font-medium font-serif text-foreground">
                 {parameter.displayName}
               </label>
               <Badge variant="outline" className={getImpactColor(parameter.impact)}>
@@ -354,7 +354,7 @@ export const ParametricControlPanel: React.FC<ParametricControlPanelProps> = ({
             )}
           </div>
 
-          <p className="text-xs text-gray-500 mt-2">{parameter.description}</p>
+          <p className="text-xs text-muted-foreground mt-2 font-serif">{parameter.description}</p>
 
           {parameter.dependsOn && parameter.dependsOn.length > 0 && (
             <div className="mt-2 flex items-center space-x-1">
@@ -371,32 +371,32 @@ export const ParametricControlPanel: React.FC<ParametricControlPanelProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-medium text-gray-900">Design Parameters</h3>
+      {/* Header with vintage tool aesthetic */}
+      <div className="flex items-center justify-between p-4 bg-wood-pine bg-blend-overlay bg-card rounded-lg border border-border">
+        <h3 className="text-lg font-heading font-medium text-foreground">Craftsman's Measurements</h3>
         <div className="flex items-center space-x-2">
           {!realTimeMode && pendingChanges.size > 0 && (
             <Button
               onClick={applyPendingChanges}
               disabled={isGenerating}
-              className="text-xs"
+              className="text-xs bg-primary hover:bg-primary/90"
             >
               <Zap className="w-4 h-4 mr-1" />
-              Apply ({pendingChanges.size})
+              Apply Changes ({pendingChanges.size})
             </Button>
           )}
-          <Badge variant={realTimeMode ? "default" : "secondary"}>
-            {realTimeMode ? "Real-time" : "Manual"}
+          <Badge variant={realTimeMode ? "default" : "secondary"} className="font-serif">
+            {realTimeMode ? "Live Adjustments" : "Manual Mode"}
           </Badge>
         </div>
       </div>
 
       {/* Warning about dependencies */}
       {lockedParameters.size > 0 && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+        <div className="bg-wood-oak bg-blend-overlay bg-accent/20 border border-accent rounded-md p-3">
           <div className="flex items-center">
-            <AlertTriangle className="w-4 h-4 text-yellow-600 mr-2" />
-            <span className="text-sm text-yellow-800">
+            <AlertTriangle className="w-4 h-4 text-accent-foreground mr-2" />
+            <span className="text-sm text-accent-foreground font-serif">
               {lockedParameters.size} parameter(s) locked. Changes to related parameters may be limited.
             </span>
           </div>
@@ -431,9 +431,9 @@ export const ParametricControlPanel: React.FC<ParametricControlPanelProps> = ({
       </Tabs>
 
       {/* Quick Actions */}
-      <Card>
+      <Card className="workshop-card">
         <CardHeader>
-          <CardTitle className="text-sm">Quick Actions</CardTitle>
+          <CardTitle className="text-sm font-heading">Workshop Tools</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
           <Button
@@ -509,15 +509,15 @@ export const ParametricControlPanel: React.FC<ParametricControlPanelProps> = ({
 
       {/* Status */}
       {isGenerating && (
-        <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+        <div className="bg-wood-pine bg-blend-overlay bg-primary/20 border border-primary rounded-md p-3">
           <div className="flex items-center">
-            <RotateCw className="w-4 h-4 text-blue-600 mr-2 animate-spin" />
-            <span className="text-sm text-blue-800">
-              Generating 3D model with new parameters...
+            <RotateCw className="w-4 h-4 text-primary mr-2 animate-spin" />
+            <span className="text-sm text-primary font-serif">
+              Crafting 3D model with new measurements...
             </span>
           </div>
         </div>
       )}
     </div>
   );
-}; 
+};  

@@ -353,41 +353,42 @@ export const EnhancedDesignChatInterface: React.FC<EnhancedDesignChatProps> = ({
   };
 
   return (
-    <div className={`flex flex-col h-full bg-gray-50 ${className}`}>
+    <div className={`flex flex-col h-full bg-gradient-to-b from-background to-muted/30 ${className}`}>
       {/* Header with controls */}
-      <div className="bg-white border-b border-gray-200 p-4">
+      <div className="bg-wood-pine bg-blend-overlay bg-card border-b border-border p-4 shadow-sm">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <h2 className="text-xl font-semibold text-gray-900">
-              Blueprint Buddy Enhanced Studio
+            <h2 className="text-xl font-heading font-semibold text-foreground">
+              Master Craftsman's Workshop
             </h2>
             <div className="flex items-center space-x-2">
               <Button
                 variant={realTimeMode ? "default" : "outline"}
                 size="sm"
                 onClick={() => setRealTimeMode(!realTimeMode)}
-                className="text-xs"
+                className="text-xs border-border"
               >
                 <Zap className="w-4 h-4 mr-1" />
-                Real-time
+                Live Updates
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleExportDocumentation}
                 disabled={!buildDocumentation}
+                className="border-border hover:bg-accent/10"
               >
                 <Download className="w-4 h-4 mr-1" />
-                Export
+                Export Plans
               </Button>
             </div>
           </div>
           
-          <div className="flex items-center space-x-2 text-sm text-gray-600">
+          <div className="flex items-center space-x-2 text-sm text-muted-foreground font-serif">
             {modelState.isGenerating && (
               <div className="flex items-center">
                 <RotateCw className="w-4 h-4 mr-1 animate-spin" />
-                Generating...
+                Crafting...
               </div>
             )}
             {modelState.lastUpdate && (
@@ -530,7 +531,7 @@ export const EnhancedDesignChatInterface: React.FC<EnhancedDesignChatProps> = ({
             {realTimeMode && (
               <span className="flex items-center text-green-600">
                 <Zap className="w-4 h-4 mr-1" />
-                Real-time mode active
+                Live mode active
               </span>
             )}
           </div>
@@ -538,4 +539,4 @@ export const EnhancedDesignChatInterface: React.FC<EnhancedDesignChatProps> = ({
       </div>
     </div>
   );
-}; 
+};      
