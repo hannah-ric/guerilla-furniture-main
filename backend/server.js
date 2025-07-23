@@ -343,6 +343,58 @@ app.get('/health', (req, res) => {
   });
 });
 
+function generateMockAgentResponse(agentName, prompt) {
+  const baseResponse = {
+    success: true,
+    confidence: 0.8,
+    suggestions: [`This is a mock response for ${agentName} agent`],
+    next_steps: ['Configure OPENAI_API_KEY for real AI responses']
+  };
+
+  switch (agentName.toLowerCase()) {
+    case 'intentclassifier':
+      return {
+        ...baseResponse,
+        primary_intent: 'DESIGN_INITIATION',
+        secondary_intents: [],
+        confidence: 'medium',
+        entities: { furniture_type: 'table' },
+        requires_clarification: false,
+        suggested_next_intents: ['DIMENSION_SPECIFICATION']
+      };
+    case 'dimensionagent':
+      return {
+        ...baseResponse,
+        dimensions: { width: 48, height: 30, depth: 24, unit: 'inches' },
+        ergonomic_validation: { valid: true, issues: [] }
+      };
+    case 'materialagent':
+      return {
+        ...baseResponse,
+        primary_material: 'Pine',
+        alternative_materials: ['Oak', 'Plywood'],
+        estimated_cost: 150
+      };
+    case 'joineryagent':
+      return {
+        ...baseResponse,
+        primary_method: { name: 'Pocket Screws', difficulty: 'beginner' },
+        alternative_methods: [{ name: 'Mortise and Tenon', difficulty: 'advanced' }]
+      };
+    case 'validationagent':
+      return {
+        ...baseResponse,
+        structural: { valid: true, issues: [] },
+        physics: { stable: true, load_capacity: '200 lbs' }
+      };
+    default:
+      return {
+        ...baseResponse,
+        data: { message: `Mock response for ${agentName}: ${prompt.substring(0, 100)}...` }
+      };
+  }
+}
+
 function calculateCost(promptTokens, completionTokens) {
   const costs = {
     'gpt-3.5-turbo': { input: 0.0015, output: 0.002 }
@@ -376,4 +428,4 @@ const server = app.listen(PORT, () => {
   console.log(`Backend server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`CORS enabled for: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
-});                
+});                                
