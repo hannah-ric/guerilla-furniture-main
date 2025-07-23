@@ -13,8 +13,7 @@ import { OptimizationSuggestions } from './OptimizationSuggestions';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { FurnitureViewer } from '@/components/viewer/FurnitureViewer';
-import { Logger } from '@/lib/logger';
-import { PerformanceMonitor } from '@/lib/performance';
+import { ProviderPerformanceTest } from '@/components/testing/ProviderPerformanceTest';
 import * as THREE from 'three';
 
 interface EnhancedDesignChatProps {
@@ -83,14 +82,13 @@ export const EnhancedDesignChatInterface: React.FC<EnhancedDesignChatProps> = ({
 
   const orchestrator = useRef(new FurnitureDesignOrchestrator());
   const aiModelGenerator = useRef(new AIParametricModelGenerator());
-  const logger = Logger.createScoped('EnhancedDesignChat');
   const { toast } = useToast();
 
   useEffect(() => {
     const initializeServices = async () => {
       try {
         await orchestrator.current.initialize();
-        logger.info('Enhanced design chat initialized');
+        console.log('Enhanced design chat initialized');
         
         // Add welcome message
         setMessages([{
@@ -103,7 +101,7 @@ export const EnhancedDesignChatInterface: React.FC<EnhancedDesignChatProps> = ({
           }
         }]);
       } catch (error) {
-        logger.error('Failed to initialize services', error);
+        console.error('Failed to initialize services', error);
         toast({
           title: 'Initialization Failed',
           description: 'Some features may not work properly. Please refresh the page.',
@@ -131,9 +129,7 @@ export const EnhancedDesignChatInterface: React.FC<EnhancedDesignChatProps> = ({
 
     try {
       // Process the message through the orchestrator
-      const response = await PerformanceMonitor.measureAsync('processUserInput', () =>
-        orchestrator.current.processUserInput(input)
-      );
+      const response = await orchestrator.current.processUserInput(input);
 
       if (response.success) {
         // Update design state
@@ -176,7 +172,7 @@ export const EnhancedDesignChatInterface: React.FC<EnhancedDesignChatProps> = ({
       }
 
     } catch (error) {
-      logger.error('Message processing failed', error);
+      console.error('Message processing failed', error);
       
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -249,7 +245,7 @@ export const EnhancedDesignChatInterface: React.FC<EnhancedDesignChatProps> = ({
       });
 
     } catch (error) {
-      logger.error('Failed to update 3D model', error);
+      console.error('Failed to update 3D model', error);
       setModelState(prev => ({ ...prev, isGenerating: false }));
       
       toast({
@@ -284,7 +280,7 @@ export const EnhancedDesignChatInterface: React.FC<EnhancedDesignChatProps> = ({
         }
       }
     } catch (error) {
-      logger.error('Real-time parameter adjustment failed', error);
+      console.error('Real-time parameter adjustment failed', error);
     }
   }, [realTimeMode, onDesignUpdate]);
 
@@ -327,7 +323,7 @@ export const EnhancedDesignChatInterface: React.FC<EnhancedDesignChatProps> = ({
       });
 
     } catch (error) {
-      logger.error('Export failed', error);
+      console.error('Export failed', error);
       toast({
         title: 'Export Failed',
         description: 'Unable to export documentation. Please try again.',
@@ -404,11 +400,12 @@ export const EnhancedDesignChatInterface: React.FC<EnhancedDesignChatProps> = ({
         {/* Left side - Chat and Controls */}
         <div className="w-1/2 flex flex-col border-r border-gray-200">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="chat">Chat</TabsTrigger>
               <TabsTrigger value="parameters">Parameters</TabsTrigger>
               <TabsTrigger value="build-plan">Build Plan</TabsTrigger>
               <TabsTrigger value="optimize">Optimize</TabsTrigger>
+              <TabsTrigger value="performance">Performance</TabsTrigger>
             </TabsList>
 
             <TabsContent value="chat" className="flex-1 flex flex-col p-4">
@@ -448,6 +445,10 @@ export const EnhancedDesignChatInterface: React.FC<EnhancedDesignChatProps> = ({
                   });
                 }}
               />
+            </TabsContent>
+
+            <TabsContent value="performance" className="flex-1 p-4">
+              <ProviderPerformanceTest />
             </TabsContent>
           </Tabs>
         </div>
@@ -538,4 +539,4 @@ export const EnhancedDesignChatInterface: React.FC<EnhancedDesignChatProps> = ({
       </div>
     </div>
   );
-}; 
+};        

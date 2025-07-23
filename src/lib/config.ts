@@ -12,6 +12,12 @@ export const config = {
       maxTokens: 1000,
       temperature: 0.7,
     },
+    anthropic: {
+      // Note: API key is handled by backend for security
+      model: 'claude-3-haiku-20240307',
+      maxTokens: 1000,
+      temperature: 0.7,
+    },
     backend: {
       url: import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001',
     },
@@ -38,6 +44,8 @@ export const config = {
     pdfExport: true,
     userAuthentication: false, // Coming soon
     backend: true, // Use backend API for OpenAI calls
+    anthropicIntegration: true, // Enable Anthropic provider
+    providerComparison: true, // Enable A/B testing
   },
 
   // Design Constraints
@@ -88,4 +96,4 @@ export function validateConfig(): { isValid: boolean; errors: string[] } {
     isValid: errors.length === 0,
     errors,
   };
-} 
+}  

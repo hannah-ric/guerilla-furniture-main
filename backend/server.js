@@ -26,19 +26,37 @@ const limiter = rateLimit({
 
 app.use('/api/', limiter);
 
-// OpenAI client - handle missing API key for development
+// AI Provider clients - handle missing API keys for development
 let openai = null;
-const isDevelopment = !process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'sk-test-key-for-development' || process.env.OPENAI_API_KEY === 'sk-your-openai-api-key-here';
+let anthropic = null;
 
-if (!isDevelopment) {
+const isOpenAIDev = !process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'sk-test-key-for-development' || process.env.OPENAI_API_KEY === 'sk-your-openai-api-key-here';
+const isAnthropicDev = !process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY === 'sk-ant-test-key-for-development' || process.env.ANTHROPIC_API_KEY === 'sk-ant-your-anthropic-api-key-here';
+
+if (!isOpenAIDev) {
   openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
   });
   console.log('✅ OpenAI client initialized with API key');
 } else {
-  console.log('🚧 Running in development mode without OpenAI API key');
-  console.log('   Set OPENAI_API_KEY in backend/.env for full functionality');
+  console.log('🚧 OpenAI running in development mode without API key');
 }
+
+if (!isAnthropicDev) {
+  try {
+    const Anthropic = (await import('@anthropic-ai/sdk')).default;
+    anthropic = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY
+    });
+    console.log('✅ Anthropic client initialized with API key');
+  } catch (error) {
+    console.log('⚠️ Anthropic SDK not installed - install with: npm install @anthropic-ai/sdk');
+  }
+} else {
+  console.log('🚧 Anthropic running in development mode without API key');
+}
+
+console.log('   Set API keys in backend/.env for full functionality');
 
 // Request validation schemas
 const ChatRequestSchema = z.object({
@@ -332,6 +350,95 @@ app.get('/api/stats', (req, res) => {
   res.json(sessionManager.getStats());
 });
 
+app.post('/api/chat/compare', async (req, res) => {
+  try {
+    const { message, context, systemPrompt } = ChatRequestSchema.parse(req.body);
+    const sessionId = req.headers['x-session-id'] || 'default';
+    
+    if (!sessionManager.isSessionValid(sessionId)) {
+      return res.status(429).json({ 
+        error: 'Session cost limit exceeded',
+        sessionCost: sessionManager.getSession(sessionId).cost
+      });
+    }
+
+    const results = {};
+    const startTime = Date.now();
+
+    if (openai) {
+      const openaiStart = Date.now();
+      try {
+        const openaiResponse = await openai.chat.completions.create({
+          model: 'gpt-3.5-turbo',
+          messages: [
+            { role: 'system', content: systemPrompt || 'You are Blueprint Buddy, a helpful AI assistant for furniture design.' },
+            ...(context ? [{ role: 'system', content: `Current design context: ${context}` }] : []),
+            { role: 'user', content: message }
+          ],
+          temperature: 0.7,
+          max_tokens: 1000
+        });
+        
+        results.openai = {
+          response: openaiResponse.choices[0].message.content,
+          responseTime: Date.now() - openaiStart,
+          usage: openaiResponse.usage,
+          cost: calculateCost(openaiResponse.usage.prompt_tokens, openaiResponse.usage.completion_tokens),
+          provider: 'openai'
+        };
+      } catch (error) {
+        results.openai = { error: error.message, responseTime: Date.now() - openaiStart };
+      }
+    }
+
+    if (anthropic) {
+      const anthropicStart = Date.now();
+      try {
+        const anthropicResponse = await anthropic.messages.create({
+          model: 'claude-3-haiku-20240307',
+          max_tokens: 1000,
+          messages: [
+            { 
+              role: 'user', 
+              content: `${systemPrompt || 'You are Blueprint Buddy, a helpful AI assistant for furniture design.'}\n\n${context ? `Current design context: ${context}\n\n` : ''}${message}`
+            }
+          ]
+        });
+        
+        results.anthropic = {
+          response: anthropicResponse.content[0].text,
+          responseTime: Date.now() - anthropicStart,
+          usage: anthropicResponse.usage,
+          cost: calculateAnthropicCost(anthropicResponse.usage.input_tokens, anthropicResponse.usage.output_tokens),
+          provider: 'anthropic'
+        };
+      } catch (error) {
+        results.anthropic = { error: error.message, responseTime: Date.now() - anthropicStart };
+      }
+    }
+
+    if (!openai && !anthropic) {
+      results.mock = {
+        response: `🚧 Development Mode Response for: "${message}"\n\nI'm Blueprint Buddy, your furniture design assistant! Both OpenAI and Anthropic are in development mode.`,
+        responseTime: 50,
+        usage: { prompt_tokens: 50, completion_tokens: 150, total_tokens: 200 },
+        cost: 0.001,
+        provider: 'mock'
+      };
+    }
+
+    res.json({
+      results,
+      totalTime: Date.now() - startTime,
+      comparison: generateProviderComparison(results)
+    });
+
+  } catch (error) {
+    console.error('Provider comparison error:', error);
+    res.status(500).json({ error: 'Provider comparison failed' });
+  }
+});
+
 // Health check with enhanced info
 app.get('/health', (req, res) => {
   const stats = sessionManager.getStats();
@@ -351,6 +458,156 @@ function calculateCost(promptTokens, completionTokens) {
   const modelCost = costs['gpt-3.5-turbo'];
   return (promptTokens / 1000) * modelCost.input + 
          (completionTokens / 1000) * modelCost.output;
+}
+
+function calculateAnthropicCost(inputTokens, outputTokens) {
+  const costs = {
+    'claude-3-haiku-20240307': { input: 0.00025, output: 0.00125 }
+  };
+  
+  const modelCost = costs['claude-3-haiku-20240307'];
+  return (inputTokens / 1000) * modelCost.input + 
+         (outputTokens / 1000) * modelCost.output;
+}
+
+function generateMockAgentResponse(agentName, prompt) {
+  const responses = {
+    DimensionAgent: {
+      measurements: [
+        {
+          component: "main_body",
+          dimension_type: "width",
+          value: 36,
+          unit: "inches",
+          converted_to_inches: 36
+        },
+        {
+          component: "main_body", 
+          dimension_type: "height",
+          value: 30,
+          unit: "inches",
+          converted_to_inches: 30
+        },
+        {
+          component: "main_body",
+          dimension_type: "depth", 
+          value: 18,
+          unit: "inches",
+          converted_to_inches: 18
+        }
+      ],
+      total_dimensions: {
+        width: 36,
+        height: 30,
+        depth: 18
+      },
+      material_requirements: {
+        board_feet: 15.5,
+        sheet_goods_area: 12
+      },
+      ergonomic_validation: {
+        is_valid: true,
+        issues: []
+      }
+    },
+    MaterialAgent: {
+      primary_material: {
+        name: "Pine",
+        type: "solid_wood",
+        properties: {
+          cost_per_board_foot: 4.50,
+          workability: "easy",
+          durability: "moderate",
+          hardness: 420,
+          indoor_outdoor: "indoor"
+        },
+        cost_estimate: 75
+      },
+      alternatives: [
+        {
+          name: "Oak",
+          reason: "More durable but higher cost",
+          cost_estimate: 120
+        },
+        {
+          name: "Plywood",
+          reason: "More stable and cost-effective",
+          cost_estimate: 45
+        }
+      ],
+      compatibility: {
+        with_dimensions: true,
+        with_environment: true,
+        with_budget: true
+      }
+    },
+    JoineryAgent: {
+      joints: [
+        {
+          type: "pocket_screw",
+          location: "frame_connections",
+          strength: "high",
+          difficulty: "beginner"
+        }
+      ],
+      hardware: [
+        {
+          type: "wood_screws",
+          size: "2.5_inch",
+          quantity: 24
+        }
+      ],
+      assembly_order: ["frame", "panels", "finishing"]
+    },
+    ValidationAgent: {
+      structural_analysis: {
+        load_capacity: "300_lbs",
+        stability_rating: "excellent",
+        safety_factor: 3.2
+      },
+      compliance: {
+        building_codes: true,
+        safety_standards: true
+      },
+      recommendations: ["Add corner bracing for extra stability"]
+    }
+  };
+
+  return responses[agentName] || {
+    status: "success",
+    message: `Mock response for ${agentName}`,
+    data: {}
+  };
+}
+
+function generateProviderComparison(results) {
+  const comparison = {
+    fastest: null,
+    cheapest: null,
+    recommendations: []
+  };
+
+  const providers = Object.keys(results).filter(key => !results[key].error);
+  
+  if (providers.length > 1) {
+    const fastest = providers.reduce((prev, curr) => 
+      results[prev].responseTime < results[curr].responseTime ? prev : curr
+    );
+    comparison.fastest = fastest;
+
+    const cheapest = providers.reduce((prev, curr) => 
+      results[prev].cost < results[curr].cost ? prev : curr
+    );
+    comparison.cheapest = cheapest;
+
+    if (fastest === cheapest) {
+      comparison.recommendations.push(`${fastest} is both fastest and cheapest`);
+    } else {
+      comparison.recommendations.push(`${fastest} is fastest, ${cheapest} is cheapest`);
+    }
+  }
+
+  return comparison;
 }
 
 // Graceful shutdown
@@ -376,4 +633,4 @@ const server = app.listen(PORT, () => {
   console.log(`Backend server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`CORS enabled for: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
-});                
+});                        
