@@ -1,0 +1,9 @@
+<svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <pattern id="woodGrain" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+      <rect width="20" height="20" fill="#D2B48C"/>
+      <path d="M0,5 Q10,3 20,5 M0,10 Q10,8 20,10 M0,15 Q10,13 20,15" stroke="#CD853F" stroke-width="0.5" fill="none"/>
+    </pattern>
+  </defs>
+  <rect width="200" height="200" fill="url(#woodGrain)"/>
+</svg>

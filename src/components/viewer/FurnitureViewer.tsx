@@ -299,7 +299,7 @@ export function FurnitureViewer({ design, showDimensions, enableAnimation }: Pro
   }
 
   return (
-    <div ref={containerRef} className="h-full w-full bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-lg overflow-hidden relative">
+    <div ref={containerRef} className="h-full w-full bg-gradient-to-br from-wood-oak to-wood-walnut bg-blend-soft-light bg-muted/20 rounded-lg overflow-hidden relative shadow-inner">
       {/* View controls */}
       {hasBeenVisible && (hasExploded || hasAnimation) && (
         <ViewControls
@@ -388,18 +388,18 @@ export function FurnitureViewer({ design, showDimensions, enableAnimation }: Pro
       )}
       
       {/* Info overlay */}
-      <div className="absolute bottom-4 left-4 bg-background/80 backdrop-blur-sm rounded-lg p-3 text-sm">
-        <div className="font-semibold">{design.name || design.furniture_type}</div>
-        <div className="text-xs text-muted-foreground mt-1">
+      <div className="absolute bottom-4 left-4 bg-wood-pine bg-blend-overlay bg-background/80 backdrop-blur-sm rounded-lg p-3 text-sm border border-border shadow-md">
+        <div className="font-heading font-semibold">{design.name || design.furniture_type}</div>
+        <div className="text-xs text-muted-foreground mt-1 font-serif">
           {design.dimensions.width}" × {design.dimensions.height}" × {design.dimensions.depth}"
         </div>
         {design.materials?.[0] && (
-          <div className="text-xs text-muted-foreground">
+          <div className="text-xs text-muted-foreground font-serif">
             {design.materials[0].type}
           </div>
         )}
         {loadedModel?.userData.parts && (
-          <div className="text-xs text-muted-foreground">
+          <div className="text-xs text-muted-foreground font-serif">
             {loadedModel.userData.parts.length} parts
           </div>
         )}
@@ -407,10 +407,10 @@ export function FurnitureViewer({ design, showDimensions, enableAnimation }: Pro
       
       {/* Parts list (when in exploded view) */}
       {viewMode === 'exploded' && loadedModel?.userData.parts && (
-        <div className="absolute bottom-4 right-4 bg-background/80 backdrop-blur-sm rounded-lg p-3 text-xs max-w-xs max-h-48 overflow-y-auto">
-          <div className="font-semibold mb-2">Parts List:</div>
+        <div className="absolute bottom-4 right-4 bg-wood-pine bg-blend-overlay bg-background/80 backdrop-blur-sm rounded-lg p-3 text-xs max-w-xs max-h-48 overflow-y-auto border border-border shadow-md">
+          <div className="font-heading font-semibold mb-2">Parts List:</div>
           {loadedModel.userData.parts.map((part: any, index: number) => (
-            <div key={part.id} className="py-0.5">
+            <div key={part.id} className="py-0.5 font-serif">
               {index + 1}. {part.name}
             </div>
           ))}

@@ -41,19 +41,20 @@ const DesignerHeader = React.memo(({
   onSave: () => void;
   onDownload: () => void;
 }) => (
-  <header className="border-b p-4 flex items-center justify-between">
+  <header className="border-b border-border bg-wood-oak bg-blend-overlay bg-card p-4 flex items-center justify-between shadow-sm">
     <div className="flex items-center gap-4">
       <Button
         variant="ghost"
         size="icon"
         onClick={onBack}
+        className="hover:bg-accent/20"
       >
         <ArrowLeft className="h-4 w-4" />
       </Button>
       <div>
-        <h1 className="text-xl font-bold">Furniture Designer</h1>
-        <p className="text-sm text-muted-foreground">
-          {designName || designType || 'New Design'}
+        <h1 className="text-xl font-heading font-bold text-foreground">Blueprint Buddy Workshop</h1>
+        <p className="text-sm text-muted-foreground font-serif">
+          {designName || designType || 'New Woodworking Project'}
         </p>
       </div>
     </div>
@@ -64,17 +65,19 @@ const DesignerHeader = React.memo(({
         size="sm"
         onClick={onDownload}
         disabled={!canExport || isExporting}
+        className="border-border hover:bg-accent/10"
       >
         <Download className="h-4 w-4 mr-2" />
-        {isExporting ? 'Exporting...' : 'Download PDF'}
+        {isExporting ? 'Preparing Plans...' : 'Download Plans'}
       </Button>
       <Button
         size="sm"
         onClick={onSave}
         disabled={!canExport}
+        className="bg-primary hover:bg-primary/90"
       >
         <Save className="h-4 w-4 mr-2" />
-        Save
+        Save Project
       </Button>
     </div>
   </header>
@@ -222,7 +225,7 @@ export function Designer() {
   }
 
   return (
-    <div className="h-screen flex flex-col">
+    <div className="h-screen flex flex-col bg-background">
       <DesignerHeader
         designName={design?.name}
         designType={design?.furniture_type}
